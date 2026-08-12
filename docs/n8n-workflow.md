@@ -46,8 +46,9 @@ without it, every call to Gemini was stateless and had no idea what was said two
 **2. HTTP Request — "Call Gemini"**
 - Method: `POST`
 - URL: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`
-  (switched from `gemini-2.0-flash` after hitting free-tier quota — verify this exact model id still
-  matches what's listed at https://ai.google.dev/gemini-api/docs/rate-limits before relying on it)
+  (confirmed working earlier — every model tried after this one hit the same account-wide
+  free-tier quota wall for the rest of the day, so this is the known-good baseline to resume
+  testing from once the quota resets)
 - Query Parameter: `key` = `{{ $env.GEMINI_API_KEY }}` (set `GEMINI_API_KEY` as an n8n
   environment variable — never hardcode it in the node)
 - Body → **Specify Body: "Using Fields Below"** — not "Using JSON" as a literal text block. `systemPrompt`
