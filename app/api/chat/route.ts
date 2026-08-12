@@ -3,11 +3,10 @@ import type { AgentMode, ChatRequestBody, ChatResponseBody } from "@/types";
 import { getCharacterById } from "@/lib/characters/registry";
 import { loadSkill } from "@/lib/characters/loader";
 import { buildSystemPrompt } from "@/lib/agent/promptBuilder";
+import { callN8nChat, N8nError } from "@/lib/n8n/client";
 
-// Phase 1: no n8n/Gemini call yet — this returns a canned, character-flavored
-// reply. The system prompt below is already built from the real SKILL.md so
-// that swapping in the n8n call in Phase 2 is a one-line change (POST this
-// prompt + message to N8N_WEBHOOK_URL instead of picking a canned line).
+// Mock fallback for local dev when N8N_WEBHOOK_URL isn't configured yet.
+// See docs/n8n-workflow.md for the real workflow this hands off to once it is.
 const MOCK_OPENERS = [
   "Let's start with the actual problem, not the surface one — what are you really trying to solve?",
   "Interesting. What have you already tried, and what happened?",
@@ -48,16 +47,31 @@ export async function POST(req: NextRequest) {
   }
 
   const skill = loadSkill(character);
-  buildSystemPrompt(character, skill, mode); // wired for Phase 2, unused by the mock reply itself
+  const systemPrompt = buildSystemPrompt(character, skill, mode);
 
-  // Small artificial delay so the "thinking" UI state is visible in Phase 1.
-  await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500));
+  if (!process.env.N8N_WEBHOOK_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500));
+    const response: ChatResponseBody = {
+      characterId: character.id,
+      message: pickMockReply(message),
+      conversationId: conversationId ?? crypto.randomUUID(),
+    };
+    return NextResponse.json(response);
+  }
 
-  const response: ChatResponseBody = {
-    characterId: character.id,
-    message: pickMockReply(message),
-    conversationId: conversationId ?? crypto.randomUUID(),
-  };
-
-  return NextResponse.json(response);
+  try {
+    const response = await callN8nChat({
+      characterId: character.id,
+      systemPrompt,
+      message,
+      conversationId,
+      mode,
+    });
+    return NextResponse.json(response);
+  } catch (err) {
+    if (err instanceof N8nError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    return NextResponse.json({ error: "Unexpected error calling n8n" }, { status: 500 });
+  }
 }
