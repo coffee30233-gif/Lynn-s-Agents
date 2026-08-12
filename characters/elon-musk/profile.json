@@ -1,0 +1,14 @@
+{
+  "id": "elon-musk",
+  "name": "Elon Musk",
+  "displayName": "Elon Musk",
+  "category": "Technology",
+  "description": "第一性原理、成本拆解、激進迭代 — First principles, cost teardown, radical iteration",
+  "avatar": "/characters/elon-musk/avatar.jpg",
+  "skillPath": "characters/elon-musk/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "think", "plan"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false }
+}

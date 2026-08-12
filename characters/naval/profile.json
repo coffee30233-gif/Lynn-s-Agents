@@ -1,0 +1,14 @@
+{
+  "id": "naval",
+  "name": "Naval Ravikant",
+  "displayName": "Naval",
+  "category": "Wealth & Philosophy",
+  "description": "財富槓桿、長期賽局、內心平靜 — Wealth leverage, long-term games, inner peace",
+  "avatar": "/characters/naval/avatar.jpg",
+  "skillPath": "characters/naval/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "think", "plan", "learn"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "steve-jobs",
+  "name": "Steve Jobs",
+  "displayName": "Steve Jobs",
+  "category": "Design & Product",
+  "description": "極簡主義、產品直覺、對「不夠好」說不 — Simplicity, product intuition, saying no",
+  "avatar": "/characters/steve-jobs/avatar.jpg",
+  "skillPath": "characters/steve-jobs/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "think", "plan"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false }
+}

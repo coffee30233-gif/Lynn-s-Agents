@@ -1,0 +1,46 @@
+import Image from "next/image";
+import type { ChatMessage, CharacterProfile } from "@/types";
+
+export function ChatBubble({
+  message,
+  character,
+}: {
+  message: ChatMessage;
+  character: CharacterProfile;
+}) {
+  const isUser = message.role === "user";
+
+  return (
+    <div className={`flex animate-fade-in items-end gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
+      {!isUser && (
+        <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-white/15">
+          <Image src={character.avatar} alt={character.displayName} fill className="object-cover" />
+        </div>
+      )}
+      <div
+        className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed sm:max-w-[70%] ${
+          isUser
+            ? "rounded-br-sm bg-white text-ink-950"
+            : "rounded-bl-sm border border-white/10 bg-white/[0.05] text-white/90"
+        }`}
+      >
+        {message.content}
+      </div>
+    </div>
+  );
+}
+
+export function ThinkingBubble({ character }: { character: CharacterProfile }) {
+  return (
+    <div className="flex animate-fade-in items-end gap-2">
+      <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-white/15">
+        <Image src={character.avatar} alt={character.displayName} fill className="object-cover" />
+      </div>
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm border border-white/10 bg-white/[0.05] px-4 py-3">
+        <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-white/50 [animation-delay:-0.2s]" />
+        <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-white/50 [animation-delay:-0.1s]" />
+        <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-white/50" />
+      </div>
+    </div>
+  );
+}

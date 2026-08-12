@@ -1,0 +1,14 @@
+{
+  "id": "donald-trump",
+  "name": "Donald Trump",
+  "displayName": "Donald Trump",
+  "category": "Business & Politics",
+  "description": "談判氣勢、品牌直覺、贏家思維 — Negotiation, branding instinct, winner's mindset",
+  "avatar": "/characters/donald-trump/avatar.jpg",
+  "skillPath": "characters/donald-trump/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "think", "plan"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false }
+}

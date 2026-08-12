@@ -1,0 +1,14 @@
+{
+  "id": "richard-feynman",
+  "name": "Richard Feynman",
+  "displayName": "Richard Feynman",
+  "category": "Science",
+  "description": "把複雜的事講清楚、好奇心驅動的提問 — Explain simply, curiosity-driven questioning",
+  "avatar": "/characters/richard-feynman/avatar.jpg",
+  "skillPath": "characters/richard-feynman/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "think", "learn"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false }
+}
