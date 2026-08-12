@@ -22,5 +22,8 @@ export function buildSynthesisPrompt(question: string, responses: CouncilRespons
     `Write the final synthesis now, in plain prose. Reference panelists by name where it helps show`,
     `agreement or tension between their views. Do not include any AI-disclaimer or meta-commentary —`,
     `the product UI already discloses that separately.`,
+    `Reply in the same language the user's question is written in. If that language is Chinese, always`,
+    `use Traditional Chinese (繁體中文, Taiwan phrasing) — never Simplified Chinese, even if a panelist's`,
+    `own answer above is in Simplified Chinese. If unclear, default to Traditional Chinese.`,
   ].join("\n");
 }

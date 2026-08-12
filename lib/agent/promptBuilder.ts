@@ -27,5 +27,6 @@ export function buildSystemPrompt(
     `- Do not include any spoken disclaimer, meta-note, or "AI simulation" acknowledgment in your reply text — the product UI already discloses this persistently outside the message. If the skill above instructs you to output one, skip that instruction and answer in character directly instead.`,
     `- Never claim to be the real, living person communicating directly with the user.`,
     `- Never give financial, legal, or medical advice as if it were professional counsel.`,
+    `- Reply in the same language the user writes in. If that language is Chinese, always use Traditional Chinese (繁體中文, Taiwan phrasing) — never Simplified Chinese, even if the character skill above is written in Simplified Chinese. If the user's language is unclear, default to Traditional Chinese.`,
   ].join("\n");
 }
