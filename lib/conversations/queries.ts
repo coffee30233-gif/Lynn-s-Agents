@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AgentMode, ChatMessage } from "@/types";
+import type { AgentMode, ChatMessage, Source } from "@/types";
 
 export interface ConversationSummary {
   id: string;
@@ -13,7 +13,7 @@ export interface ConversationSummary {
 export interface CouncilConversation {
   question: string;
   characterIds: string[];
-  responses: { characterId: string; content: string }[];
+  responses: { characterId: string; content: string; sources: Source[] }[];
   synthesis: string | null;
 }
 
@@ -50,11 +50,16 @@ export async function appendMessage(
   conversationId: string,
   role: "user" | "assistant",
   content: string,
-  characterId?: string
+  characterId?: string,
+  sources?: Source[]
 ): Promise<void> {
-  const { error: insertError } = await supabase
-    .from("messages")
-    .insert({ conversation_id: conversationId, role, content, character_id: characterId ?? null });
+  const { error: insertError } = await supabase.from("messages").insert({
+    conversation_id: conversationId,
+    role,
+    content,
+    character_id: characterId ?? null,
+    sources: sources && sources.length > 0 ? sources : null,
+  });
   if (insertError) throw new Error(`Failed to save message: ${insertError.message}`);
 
   const { error: touchError } = await supabase
@@ -78,7 +83,7 @@ export async function getConversationWithMessages(
 
   const { data: rows, error } = await supabase
     .from("messages")
-    .select("id, role, content, created_at")
+    .select("id, role, content, sources, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
@@ -92,6 +97,7 @@ export async function getConversationWithMessages(
       role: row.role,
       content: row.content,
       createdAt: new Date(row.created_at).getTime(),
+      sources: row.sources ?? undefined,
     })),
   };
 }
@@ -110,7 +116,7 @@ export async function getCouncilConversation(
 
   const { data: rows, error } = await supabase
     .from("messages")
-    .select("role, content, character_id, created_at")
+    .select("role, content, character_id, sources, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
@@ -120,7 +126,11 @@ export async function getCouncilConversation(
   const synthesis = rows?.find((r) => r.character_id === "synthesis")?.content ?? null;
   const responses = (rows ?? [])
     .filter((r) => r.role === "assistant" && r.character_id && r.character_id !== "synthesis")
-    .map((r) => ({ characterId: r.character_id as string, content: r.content }));
+    .map((r) => ({
+      characterId: r.character_id as string,
+      content: r.content,
+      sources: r.sources ?? [],
+    }));
 
   return {
     question,

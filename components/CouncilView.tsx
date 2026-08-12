@@ -44,6 +44,7 @@ export function CouncilView({ characters }: { characters: CharacterProfile[] }) 
     const panel = result.responses.map((r) => ({
       character: characters.find((c) => c.id === r.characterId)!,
       message: r.message,
+      sources: r.sources,
     }));
 
     return (

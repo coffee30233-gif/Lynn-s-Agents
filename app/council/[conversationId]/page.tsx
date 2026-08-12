@@ -22,7 +22,7 @@ export default async function CouncilArchivePage({
   const panel = council.responses
     .map((r) => {
       const character = getCharacterById(r.characterId);
-      return character ? { character, message: r.content } : null;
+      return character ? { character, message: r.content, sources: r.sources } : null;
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);
 

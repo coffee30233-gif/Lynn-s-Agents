@@ -1,4 +1,4 @@
-import type { AgentMode } from "@/types";
+import type { AgentMode, Source } from "@/types";
 import { callN8nChat, N8nError, type ConversationTurn } from "@/lib/n8n/client";
 
 // Mock fallback for local dev when N8N_WEBHOOK_URL isn't configured yet.
@@ -16,7 +16,7 @@ function pickMockReply(lastMessage: string): string {
 }
 
 export type ReplyResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; sources: Source[] }
   | { ok: false; error: string; status: number };
 
 /**
@@ -35,12 +35,12 @@ export async function getCharacterReply(
   if (!process.env.N8N_WEBHOOK_URL) {
     await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500));
     const lastMessage = messages[messages.length - 1]?.content ?? "";
-    return { ok: true, message: pickMockReply(lastMessage) };
+    return { ok: true, message: pickMockReply(lastMessage), sources: [] };
   }
 
   try {
     const response = await callN8nChat({ characterId, systemPrompt, messages, conversationId, mode });
-    return { ok: true, message: response.message };
+    return { ok: true, message: response.message, sources: response.sources ?? [] };
   } catch (err) {
     if (err instanceof N8nError) return { ok: false, error: err.message, status: err.status };
     return { ok: false, error: "Unexpected error calling n8n", status: 500 };

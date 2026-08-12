@@ -81,11 +81,14 @@ export async function POST(req: NextRequest) {
     characterId: r.character.id,
     displayName: r.character.displayName,
     message: r.result.ok ? r.result.message : "",
+    sources: r.result.ok ? r.result.sources : [],
   }));
 
   if (supabase && conversationId) {
     await Promise.all(
-      responses.map((r) => appendMessage(supabase, conversationId!, "assistant", r.message, r.characterId))
+      responses.map((r) =>
+        appendMessage(supabase, conversationId!, "assistant", r.message, r.characterId, r.sources)
+      )
     );
   }
 

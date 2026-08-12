@@ -84,13 +84,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (supabase && conversationId) {
-    await appendMessage(supabase, conversationId, "assistant", result.message, character.id);
+    await appendMessage(supabase, conversationId, "assistant", result.message, character.id, result.sources);
   }
 
   const response: ChatResponseBody = {
     characterId: character.id,
     message: result.message,
     conversationId: conversationId ?? crypto.randomUUID(),
+    sources: result.sources,
   };
   return NextResponse.json(response);
 }

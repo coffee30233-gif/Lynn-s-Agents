@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { ChatMessage, CharacterProfile } from "@/types";
+import { SourceLinks } from "./SourceLinks";
 
 export function ChatBubble({
   message,
@@ -17,14 +18,17 @@ export function ChatBubble({
           <Image src={character.avatar} alt={character.displayName} fill className="object-cover" />
         </div>
       )}
-      <div
-        className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed sm:max-w-[70%] ${
-          isUser
-            ? "rounded-br-sm bg-white text-ink-950"
-            : "rounded-bl-sm border border-white/10 bg-white/[0.05] text-white/90"
-        }`}
-      >
-        {message.content}
+      <div className={`max-w-[80%] sm:max-w-[70%] ${isUser ? "flex flex-col items-end" : ""}`}>
+        <div
+          className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed ${
+            isUser
+              ? "rounded-br-sm bg-white text-ink-950"
+              : "rounded-bl-sm border border-white/10 bg-white/[0.05] text-white/90"
+          }`}
+        >
+          {message.content}
+        </div>
+        {!isUser && <SourceLinks sources={message.sources} />}
       </div>
     </div>
   );

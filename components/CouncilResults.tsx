@@ -1,9 +1,11 @@
 import Image from "next/image";
-import type { CharacterProfile } from "@/types";
+import type { CharacterProfile, Source } from "@/types";
+import { SourceLinks } from "./SourceLinks";
 
 export interface CouncilPanelResult {
   character: CharacterProfile;
   message: string;
+  sources?: Source[];
 }
 
 export function CouncilResults({
@@ -23,7 +25,7 @@ export function CouncilResults({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {panel.map(({ character, message }) => (
+        {panel.map(({ character, message, sources }) => (
           <div
             key={character.id}
             className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4"
@@ -35,6 +37,7 @@ export function CouncilResults({
               <span className="text-sm font-semibold text-white">{character.displayName}</span>
             </div>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{message}</p>
+            <SourceLinks sources={sources} />
           </div>
         ))}
       </div>

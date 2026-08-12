@@ -63,7 +63,7 @@ export function ChatView({
       setConversationId(data.conversationId);
       setMessages((prev) => [
         ...prev,
-        { id: makeId(), role: "assistant", content: data.message, createdAt: Date.now() },
+        { id: makeId(), role: "assistant", content: data.message, createdAt: Date.now(), sources: data.sources },
       ]);
       setStatus("idle");
     } catch {

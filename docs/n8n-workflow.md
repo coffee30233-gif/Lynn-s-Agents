@@ -60,18 +60,35 @@ without it, every call to Gemini was stateless and had no idea what was said two
   | `system_instruction` | `{{ { parts: [ { text: $json.body.systemPrompt } ] } }}` |
   | `contents` | `{{ $json.body.messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }}` |
   | `generationConfig` | `{{ { temperature: 0.9, maxOutputTokens: 8192 } }}` |
+  | `tools` | `{{ [ { google_search: {} } ] }}` |
 
   Note the `contents` mapping: Gemini calls the assistant turn `"model"`, not `"assistant"` — our
   own internal role name doesn't match Gemini's, so this expression translates it.
+
+  `tools` turns on Gemini's built-in Google Search grounding — no separate search API or key
+  needed. Gemini decides per-request whether the question actually needs a search; when it does,
+  the response includes `groundingMetadata` with the source pages it used, which Shape Response
+  below turns into a `sources` list.
 
 **3. Code — "Shape Response"**
 - Pulls the reply text out of Gemini's response and reshapes it to match our contract:
 
 ```js
 const geminiResponse = $input.first().json;
-const parts = geminiResponse?.candidates?.[0]?.content?.parts ?? [];
+const candidate = geminiResponse?.candidates?.[0];
+const parts = candidate?.content?.parts ?? [];
 const text = parts.map((p) => p.text).filter(Boolean).join("")
   || "Sorry, I couldn't generate a response just now.";
+
+// Present only when Gemini actually used Google Search grounding for this
+// reply — most turns won't have any. Dedupe by URL since the same source
+// often backs multiple grounding chunks.
+const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+const seen = new Set();
+const sources = chunks
+  .map((c) => c.web)
+  .filter((w) => w?.uri && !seen.has(w.uri) && seen.add(w.uri))
+  .map((w) => ({ title: w.title || w.uri, uri: w.uri }));
 
 const webhookBody = $('Webhook').first().json.body;
 
@@ -85,9 +102,14 @@ return [{
     characterId: webhookBody.characterId,
     message: text,
     conversationId,
+    sources,
   },
 }];
 ```
+
+The exact shape of `groundingMetadata` can shift between API versions — if `sources` keeps coming
+back empty even for a query that obviously needed a search, open the raw "Call Gemini" output in
+an n8n execution and check the actual field names under `candidates[0]`.
 
 **4. Respond to Webhook**
 - Respond With: **"Text"** — not "JSON" (that mode's Response Body field parses its content as
@@ -116,6 +138,7 @@ curl -X POST "$N8N_WEBHOOK_URL" \
   -d '{"characterId":"elon-musk","systemPrompt":"You are Elon Musk.","messages":[{"role":"user","content":"Hello"}],"mode":"chat"}'
 ```
 
-Once this returns a proper `{ characterId, message, conversationId }` JSON, put the
-webhook URL and secret into `.env.local` and the app will use real Gemini responses
-instead of the mock.
+Once this returns a proper `{ characterId, message, conversationId, sources }` JSON (`sources`
+may be an empty array — that's normal, it only fills in when Gemini actually searched), put the
+webhook URL and secret into `.env.local` and the app will use real Gemini responses instead of
+the mock.

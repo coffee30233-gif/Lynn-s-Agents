@@ -1,4 +1,11 @@
-import type { AgentMode, ChatResponseBody } from "@/types";
+import type { AgentMode, ChatResponseBody, Source } from "@/types";
+
+function parseSources(value: unknown): Source[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (s): s is Source => typeof s?.title === "string" && typeof s?.uri === "string"
+  );
+}
 
 const TIMEOUT_MS = 20000;
 
@@ -75,5 +82,6 @@ export async function callN8nChat(params: CallN8nChatParams): Promise<ChatRespon
     characterId: params.characterId,
     message: data.message,
     conversationId: data.conversationId ?? params.conversationId ?? crypto.randomUUID(),
+    sources: parseSources(data.sources),
   };
 }

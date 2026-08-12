@@ -22,6 +22,9 @@ create table if not exists messages (
   -- where conversations.character_id already answers that question.
   character_id    text,
   content         text not null,
+  -- Google Search grounding sources for this reply, when Gemini used any:
+  -- [{ "title": "...", "uri": "https://..." }]. Null/empty on most turns.
+  sources         jsonb,
   created_at      timestamptz not null default now()
 );
 
@@ -66,6 +69,10 @@ create policy "messages_insert_own" on messages
 alter table conversations alter column character_id drop not null;
 alter table conversations add column if not exists council_character_ids text[];
 alter table messages add column if not exists character_id text;
+
+-- Migration: Web Search source citations. Same rules as above — safe to
+-- re-run, safe on a fresh database.
+alter table messages add column if not exists sources jsonb;
 
 -- After running this:
 -- 1. Authentication -> Providers -> make sure "Email" is enabled.

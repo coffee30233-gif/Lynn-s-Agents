@@ -25,11 +25,17 @@ export interface CharacterProfile {
   memory: MemoryConfig;
 }
 
+export interface Source {
+  title: string;
+  uri: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+  sources?: Source[];
 }
 
 export interface ChatRequestBody {
@@ -43,6 +49,7 @@ export interface ChatResponseBody {
   characterId: string;
   message: string;
   conversationId: string;
+  sources?: Source[];
 }
 
 export interface ChatErrorBody {
@@ -58,6 +65,7 @@ export interface CouncilResponse {
   characterId: string;
   displayName: string;
   message: string;
+  sources?: Source[];
 }
 
 export interface CouncilResponseBody {
