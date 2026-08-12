@@ -25,6 +25,13 @@ export function ChatHeader({ character }: { character: CharacterProfile }) {
           <h1 className="truncate text-sm font-semibold text-white">{character.displayName}</h1>
           <DisclaimerBadge compact />
         </div>
+
+        <Link
+          href="/history"
+          className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"
+        >
+          歷史紀錄
+        </Link>
       </div>
     </header>
   );

@@ -10,18 +10,30 @@ function makeId() {
   return Math.random().toString(36).slice(2);
 }
 
-export function ChatView({ character }: { character: CharacterProfile }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: makeId(),
-      role: "assistant",
-      content: "What problem are you trying to solve?",
-      createdAt: Date.now(),
-    },
-  ]);
+export function ChatView({
+  character,
+  initialMessages,
+  initialConversationId,
+}: {
+  character: CharacterProfile;
+  initialMessages?: ChatMessage[];
+  initialConversationId?: string;
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    initialMessages && initialMessages.length > 0
+      ? initialMessages
+      : [
+          {
+            id: makeId(),
+            role: "assistant",
+            content: "What problem are you trying to solve?",
+            createdAt: Date.now(),
+          },
+        ]
+  );
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [conversationId, setConversationId] = useState<string | undefined>(initialConversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastSentTextRef = useRef<string>("");
 

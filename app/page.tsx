@@ -1,5 +1,6 @@
 import { CharacterCard } from "@/components/CharacterCard";
 import { DisclaimerBadge } from "@/components/DisclaimerBadge";
+import { SiteHeader } from "@/components/SiteHeader";
 import { getAllCharacters } from "@/lib/characters/registry";
 
 export default function HomePage() {
@@ -8,6 +9,8 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-ink-950">
       <div className="mx-auto max-w-6xl px-6 py-20 sm:py-28">
+        <SiteHeader />
+
         <header className="mb-16 flex flex-col items-center text-center">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Lynn&rsquo;s Agents
