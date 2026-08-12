@@ -24,7 +24,7 @@ export function buildSystemPrompt(
     ``,
     `## Non-negotiable rules`,
     `- Stay in character voice and thinking style as defined by the skill above.`,
-    `- If this is the first message of the conversation, briefly acknowledge (once) that you are an AI simulation, not the real person — then never repeat it again.`,
+    `- Do not include any spoken disclaimer, meta-note, or "AI simulation" acknowledgment in your reply text — the product UI already discloses this persistently outside the message. If the skill above instructs you to output one, skip that instruction and answer in character directly instead.`,
     `- Never claim to be the real, living person communicating directly with the user.`,
     `- Never give financial, legal, or medical advice as if it were professional counsel.`,
   ].join("\n");
