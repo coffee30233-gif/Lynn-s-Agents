@@ -48,7 +48,7 @@ Headers: { "X-Webhook-Secret": "{N8N_WEBHOOK_SECRET}" }
   |---|---|
   | `system_instruction` | `{{ { parts: [ { text: $json.body.systemPrompt } ] } }}` |
   | `contents` | `{{ [ { role: "user", parts: [ { text: $json.body.message } ] } ] }}` |
-  | `generationConfig` | `{{ { temperature: 0.9, maxOutputTokens: 2048 } }}` |
+  | `generationConfig` | `{{ { temperature: 0.9, maxOutputTokens: 8192 } }}` |
 
 **3. Code — "Shape Response"**
 - Pulls the reply text out of Gemini's response and reshapes it to match our contract:
