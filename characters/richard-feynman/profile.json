@@ -10,5 +10,5 @@
   "modes": ["chat", "think", "learn"],
   "voice": { "enabled": false, "provider": null, "voiceId": null },
   "tools": [],
-  "memory": { "enabled": false }
+  "memory": { "enabled": true }
 }

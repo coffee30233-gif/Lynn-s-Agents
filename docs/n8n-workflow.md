@@ -6,9 +6,10 @@ instance; the code side (`lib/n8n/client.ts`) already expects this exact shape.
 ## What our server sends
 
 Our Next.js `/api/chat` route already does the character/skill work (load `profile.json`,
-read `SKILL.md`, build the system prompt) before calling n8n. n8n's only job is: take a
-system prompt + a message, call Gemini, hand back the text. This keeps character data in
-one place (this repo) instead of being duplicated inside n8n.
+read `SKILL.md`, build the system prompt, reconstruct the conversation's message history from
+Supabase) before calling n8n. n8n's only job is: take a system prompt + the turn history, call
+Gemini, hand back the text. This keeps character data and conversation state in one place (this
+repo/Supabase) instead of being duplicated inside n8n.
 
 ```json
 POST {N8N_WEBHOOK_URL}
@@ -16,12 +17,20 @@ Headers: { "X-Webhook-Secret": "{N8N_WEBHOOK_SECRET}" }
 
 {
   "characterId": "elon-musk",
-  "systemPrompt": "...full prompt built from SKILL.md + mode rules...",
-  "message": "我想創業，但不知道從哪開始。",
+  "systemPrompt": "...full prompt built from SKILL.md + mode rules + memory...",
+  "messages": [
+    { "role": "user", "content": "我想創業，但不知道從哪開始。" },
+    { "role": "assistant", "content": "先算原材料..." },
+    { "role": "user", "content": "那第一步該做什麼？" }
+  ],
   "conversationId": "optional-id",
   "mode": "chat"
 }
 ```
+
+`messages` is the full turn history for this conversation, oldest first, latest user turn last —
+not just the newest message. This is what makes follow-up questions ("那 X 呢？") actually work;
+without it, every call to Gemini was stateless and had no idea what was said two messages ago.
 
 ## Nodes
 
@@ -49,8 +58,11 @@ Headers: { "X-Webhook-Secret": "{N8N_WEBHOOK_SECRET}" }
   | Name | Value (expression) |
   |---|---|
   | `system_instruction` | `{{ { parts: [ { text: $json.body.systemPrompt } ] } }}` |
-  | `contents` | `{{ [ { role: "user", parts: [ { text: $json.body.message } ] } ] }}` |
+  | `contents` | `{{ $json.body.messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }}` |
   | `generationConfig` | `{{ { temperature: 0.9, maxOutputTokens: 8192 } }}` |
+
+  Note the `contents` mapping: Gemini calls the assistant turn `"model"`, not `"assistant"` — our
+  own internal role name doesn't match Gemini's, so this expression translates it.
 
 **3. Code — "Shape Response"**
 - Pulls the reply text out of Gemini's response and reshapes it to match our contract:
@@ -101,7 +113,7 @@ with status code `502`.
 curl -X POST "$N8N_WEBHOOK_URL" \
   -H "Content-Type: application/json" \
   -H "X-Webhook-Secret: $N8N_WEBHOOK_SECRET" \
-  -d '{"characterId":"elon-musk","systemPrompt":"You are Elon Musk.","message":"Hello","mode":"chat"}'
+  -d '{"characterId":"elon-musk","systemPrompt":"You are Elon Musk.","messages":[{"role":"user","content":"Hello"}],"mode":"chat"}'
 ```
 
 Once this returns a proper `{ characterId, message, conversationId }` JSON, put the

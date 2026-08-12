@@ -7,6 +7,7 @@ import { buildSynthesisPrompt } from "@/lib/agent/synthesis";
 import { getCharacterReply } from "@/lib/agent/reply";
 import { createClient } from "@/lib/supabase/server";
 import { appendMessage, createConversation } from "@/lib/conversations/queries";
+import { getUserMemories } from "@/lib/memory/queries";
 
 const MODE: AgentMode = "chat";
 
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
   );
   const supabase = supabaseConfigured ? await createClient() : null;
   let conversationId: string | undefined;
+  let memories: string[] = [];
 
   if (supabase) {
     const {
@@ -52,13 +54,20 @@ export async function POST(req: NextRequest) {
       mode: MODE,
     });
     await appendMessage(supabase, conversationId, "user", message);
+    memories = await getUserMemories(supabase, { excludeConversationId: conversationId });
   }
 
   const individual = await Promise.all(
     panel.map(async (character) => {
       const skill = loadSkill(character);
-      const systemPrompt = buildSystemPrompt(character, skill, MODE);
-      const result = await getCharacterReply(character.id, systemPrompt, message, conversationId, MODE);
+      const systemPrompt = buildSystemPrompt(character, skill, MODE, character.memory.enabled ? memories : []);
+      const result = await getCharacterReply(
+        character.id,
+        systemPrompt,
+        [{ role: "user", content: message }],
+        conversationId,
+        MODE
+      );
       return { character, result };
     })
   );
@@ -84,7 +93,7 @@ export async function POST(req: NextRequest) {
   const synthesisResult = await getCharacterReply(
     "synthesis",
     synthesisPrompt,
-    "Please give your synthesis now.",
+    [{ role: "user", content: "Please give your synthesis now." }],
     conversationId,
     MODE
   );

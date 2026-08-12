@@ -10,10 +10,15 @@ export class N8nError extends Error {
   }
 }
 
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 interface CallN8nChatParams {
   characterId: string;
   systemPrompt: string;
-  message: string;
+  messages: ConversationTurn[];
   conversationId?: string;
   mode: AgentMode;
 }
@@ -21,6 +26,8 @@ interface CallN8nChatParams {
 /**
  * Calls the n8n webhook that fronts Gemini. See docs/n8n-workflow.md for the
  * workflow this talks to. Secret lives server-side only — never sent to the browser.
+ * `messages` is the full turn history for this conversation (latest turn
+ * last) — n8n maps it straight into Gemini's multi-turn `contents` array.
  */
 export async function callN8nChat(params: CallN8nChatParams): Promise<ChatResponseBody> {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
