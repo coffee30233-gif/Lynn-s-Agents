@@ -36,7 +36,9 @@ Headers: { "X-Webhook-Secret": "{N8N_WEBHOOK_SECRET}" }
 
 **2. HTTP Request — "Call Gemini"**
 - Method: `POST`
-- URL: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
+- URL: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`
+  (switched from `gemini-2.0-flash` after hitting free-tier quota — verify this exact model id still
+  matches what's listed at https://ai.google.dev/gemini-api/docs/rate-limits before relying on it)
 - Query Parameter: `key` = `{{ $env.GEMINI_API_KEY }}` (set `GEMINI_API_KEY` as an n8n
   environment variable — never hardcode it in the node)
 - Body → **Specify Body: "Using Fields Below"** — not "Using JSON" as a literal text block. `systemPrompt`
