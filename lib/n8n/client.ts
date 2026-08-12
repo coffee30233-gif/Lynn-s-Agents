@@ -60,6 +60,7 @@ export async function callN8nChat(params: CallN8nChatParams): Promise<ChatRespon
 
   const data = await res.json().catch(() => null);
   if (!data || typeof data.message !== "string") {
+    console.error("[n8n] unexpected response shape:", JSON.stringify(data));
     throw new N8nError("n8n webhook returned an unexpected response shape", 502);
   }
 

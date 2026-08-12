@@ -39,41 +39,47 @@ Headers: { "X-Webhook-Secret": "{N8N_WEBHOOK_SECRET}" }
 - URL: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
 - Query Parameter: `key` = `{{ $env.GEMINI_API_KEY }}` (set `GEMINI_API_KEY` as an n8n
   environment variable — never hardcode it in the node)
-- Body (JSON), using expressions to pull from the webhook payload:
+- Body → **Specify Body: "Using Fields Below"** — not "Using JSON" as a literal text block. `systemPrompt`
+  is a full SKILL.md (multi-KB, contains newlines); pasting it into a text-templated JSON body breaks on
+  the first raw newline ("Bad control character in string literal"). Fields Below mode evaluates each
+  value as a real expression and lets n8n serialize it correctly:
 
-```json
-{
-  "system_instruction": {
-    "parts": [{ "text": "={{ $json.body.systemPrompt }}" }]
-  },
-  "contents": [
-    { "role": "user", "parts": [{ "text": "={{ $json.body.message }}" }] }
-  ],
-  "generationConfig": { "temperature": 0.9, "maxOutputTokens": 800 }
-}
-```
+  | Name | Value (expression) |
+  |---|---|
+  | `system_instruction` | `{{ { parts: [ { text: $json.body.systemPrompt } ] } }}` |
+  | `contents` | `{{ [ { role: "user", parts: [ { text: $json.body.message } ] } ] }}` |
+  | `generationConfig` | `{{ { temperature: 0.9, maxOutputTokens: 2048 } }}` |
 
 **3. Code — "Shape Response"**
 - Pulls the reply text out of Gemini's response and reshapes it to match our contract:
 
 ```js
 const geminiResponse = $input.first().json;
-const text = geminiResponse?.candidates?.[0]?.content?.parts?.[0]?.text
-  ?? "Sorry, I couldn't generate a response just now.";
+const parts = geminiResponse?.candidates?.[0]?.content?.parts ?? [];
+const text = parts.map((p) => p.text).filter(Boolean).join("")
+  || "Sorry, I couldn't generate a response just now.";
 
 const webhookBody = $('Webhook').first().json.body;
+
+// n8n's Code node sandbox doesn't expose the global `crypto` object, so
+// don't use crypto.randomUUID() here — build a plain fallback id instead.
+const conversationId = webhookBody.conversationId
+  || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 return [{
   json: {
     characterId: webhookBody.characterId,
     message: text,
-    conversationId: webhookBody.conversationId || crypto.randomUUID(),
+    conversationId,
   },
 }];
 ```
 
 **4. Respond to Webhook**
-- Response Body: `={{ $json }}`
+- Respond With: **"Text"** — not "JSON" (that mode's Response Body field parses its content as
+  literal JSON text, so a bare `={{ $json }}` fails as "Invalid JSON in 'Response Body' field")
+- Response Body: `={{ JSON.stringify($json) }}`
+- Options → Response Headers: add `Content-Type: application/json`
 - Response Code: `200`
 
 ## Error path
