@@ -46,7 +46,46 @@ export default async function HistoryPage() {
         ) : (
           <ul className="flex flex-col gap-2">
             {conversations.map((conversation) => {
-              const character = getCharacterById(conversation.characterId);
+              if (conversation.councilCharacterIds) {
+                const panel = conversation.councilCharacterIds
+                  .map((id) => getCharacterById(id))
+                  .filter((c): c is NonNullable<typeof c> => c !== null);
+
+                return (
+                  <li key={conversation.id}>
+                    <Link
+                      href={`/council/${conversation.id}`}
+                      className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 transition-colors hover:border-white/25 hover:bg-white/[0.06]"
+                    >
+                      <div className="flex shrink-0 -space-x-3">
+                        {panel.slice(0, 4).map((character) => (
+                          <div
+                            key={character.id}
+                            className="relative h-11 w-11 overflow-hidden rounded-full ring-2 ring-ink-950"
+                          >
+                            <Image src={character.avatar} alt={character.displayName} fill className="object-cover" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-medium text-white">
+                            Council · {panel.map((c) => c.displayName).join(", ")}
+                          </span>
+                          <span className="shrink-0 text-xs text-white/30">
+                            {formatDate(conversation.updatedAt)}
+                          </span>
+                        </div>
+                        {conversation.preview && (
+                          <p className="truncate text-sm text-white/50">{conversation.preview}</p>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                );
+              }
+
+              const character = conversation.characterId ? getCharacterById(conversation.characterId) : null;
               if (!character) return null;
 
               return (

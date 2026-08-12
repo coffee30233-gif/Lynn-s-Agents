@@ -48,3 +48,20 @@ export interface ChatResponseBody {
 export interface ChatErrorBody {
   error: string;
 }
+
+export interface CouncilRequestBody {
+  characterIds: string[];
+  message: string;
+}
+
+export interface CouncilResponse {
+  characterId: string;
+  displayName: string;
+  message: string;
+}
+
+export interface CouncilResponseBody {
+  conversationId: string;
+  responses: CouncilResponse[];
+  synthesis: string;
+}

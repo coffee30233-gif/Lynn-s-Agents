@@ -3,10 +3,18 @@ import type { AgentMode, ChatMessage } from "@/types";
 
 export interface ConversationSummary {
   id: string;
-  characterId: string;
+  characterId: string | null;
+  councilCharacterIds: string[] | null;
   mode: AgentMode;
   updatedAt: string;
   preview: string | null;
+}
+
+export interface CouncilConversation {
+  question: string;
+  characterIds: string[];
+  responses: { characterId: string; content: string }[];
+  synthesis: string | null;
 }
 
 /**
@@ -15,17 +23,23 @@ export interface ConversationSummary {
  * actual ownership enforcement, these are just typed query helpers.
  */
 
+type NewConversation =
+  | { characterId: string; mode: AgentMode }
+  | { councilCharacterIds: string[]; mode: AgentMode };
+
 export async function createConversation(
   supabase: SupabaseClient,
   userId: string,
-  characterId: string,
-  mode: AgentMode
+  input: NewConversation
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from("conversations")
-    .insert({ user_id: userId, character_id: characterId, mode })
-    .select("id")
-    .single();
+  const row = {
+    user_id: userId,
+    character_id: "characterId" in input ? input.characterId : null,
+    council_character_ids: "councilCharacterIds" in input ? input.councilCharacterIds : null,
+    mode: input.mode,
+  };
+
+  const { data, error } = await supabase.from("conversations").insert(row).select("id").single();
 
   if (error || !data) throw new Error(`Failed to create conversation: ${error?.message}`);
   return data.id;
@@ -35,11 +49,12 @@ export async function appendMessage(
   supabase: SupabaseClient,
   conversationId: string,
   role: "user" | "assistant",
-  content: string
+  content: string,
+  characterId?: string
 ): Promise<void> {
   const { error: insertError } = await supabase
     .from("messages")
-    .insert({ conversation_id: conversationId, role, content });
+    .insert({ conversation_id: conversationId, role, content, character_id: characterId ?? null });
   if (insertError) throw new Error(`Failed to save message: ${insertError.message}`);
 
   const { error: touchError } = await supabase
@@ -59,7 +74,7 @@ export async function getConversationWithMessages(
     .eq("id", conversationId)
     .single();
 
-  if (!conversation) return null;
+  if (!conversation || !conversation.character_id) return null;
 
   const { data: rows, error } = await supabase
     .from("messages")
@@ -81,12 +96,46 @@ export async function getConversationWithMessages(
   };
 }
 
+export async function getCouncilConversation(
+  supabase: SupabaseClient,
+  conversationId: string
+): Promise<CouncilConversation | null> {
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("council_character_ids")
+    .eq("id", conversationId)
+    .single();
+
+  if (!conversation || !conversation.council_character_ids) return null;
+
+  const { data: rows, error } = await supabase
+    .from("messages")
+    .select("role, content, character_id, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to load council messages: ${error.message}`);
+
+  const question = rows?.find((r) => r.role === "user")?.content ?? "";
+  const synthesis = rows?.find((r) => r.character_id === "synthesis")?.content ?? null;
+  const responses = (rows ?? [])
+    .filter((r) => r.role === "assistant" && r.character_id && r.character_id !== "synthesis")
+    .map((r) => ({ characterId: r.character_id as string, content: r.content }));
+
+  return {
+    question,
+    characterIds: conversation.council_character_ids,
+    responses,
+    synthesis,
+  };
+}
+
 export async function listConversationsForUser(
   supabase: SupabaseClient
 ): Promise<ConversationSummary[]> {
   const { data: conversations, error } = await supabase
     .from("conversations")
-    .select("id, character_id, mode, updated_at")
+    .select("id, character_id, council_character_ids, mode, updated_at")
     .order("updated_at", { ascending: false });
 
   if (error) throw new Error(`Failed to list conversations: ${error.message}`);
@@ -108,6 +157,7 @@ export async function listConversationsForUser(
   return conversations.map((c, i) => ({
     id: c.id,
     characterId: c.character_id,
+    councilCharacterIds: c.council_character_ids,
     mode: c.mode,
     updatedAt: c.updated_at,
     preview: previews[i].data?.content ?? null,

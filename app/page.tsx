@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CharacterCard } from "@/components/CharacterCard";
 import { DisclaimerBadge } from "@/components/DisclaimerBadge";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -17,6 +18,12 @@ export default function HomePage() {
           </h1>
           <p className="mt-4 text-lg text-white/50">Think with anyone. Do anything.</p>
           <p className="mt-2 text-sm text-white/30">有問題，就找一個適合的人。</p>
+          <Link
+            href="/council"
+            className="mt-6 rounded-full border border-white/15 px-5 py-2 text-sm font-medium text-white/70 transition-colors hover:border-white/40 hover:text-white"
+          >
+            或者，問問所有人 · Ask Lynn&rsquo;s Council →
+          </Link>
         </header>
 
         <section>
