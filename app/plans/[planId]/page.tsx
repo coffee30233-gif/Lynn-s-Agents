@@ -71,7 +71,7 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
               📍 {plan.location} · 在 Google 地圖開啟
             </a>
             <div className="mt-2">
-              <MapEmbed query={plan.location} mode="place" height={160} />
+              <MapEmbed query={plan.location} mode="place" height={300} />
             </div>
           </>
         )}
