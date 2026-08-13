@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import type { PlaceResult } from "@/lib/places/googlePlaces";
+import { MapEmbed } from "./MapEmbed";
 
 export function PlacesLookup({ initialLocation }: { initialLocation?: string }) {
   const [location, setLocation] = useState(initialLocation ?? "");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [places, setPlaces] = useState<PlaceResult[] | null>(null);
   const [category, setCategory] = useState<"餐廳" | "停車場">("餐廳");
+  const [lastQuery, setLastQuery] = useState("");
 
   async function handleQuery(kind: "餐廳" | "停車場") {
     if (!location.trim()) return;
@@ -19,6 +21,7 @@ export function PlacesLookup({ initialLocation }: { initialLocation?: string }) 
       if (!res.ok) throw new Error();
       const data = await res.json();
       setPlaces(data.places);
+      setLastQuery(query);
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -58,6 +61,12 @@ export function PlacesLookup({ initialLocation }: { initialLocation?: string }) 
       </div>
 
       {status === "error" && <p className="mt-2 text-xs text-red-300">查詢失敗，請再試一次</p>}
+
+      {places && places.length > 0 && (
+        <div className="mt-3">
+          <MapEmbed query={lastQuery} />
+        </div>
+      )}
 
       {places && (
         <div className="mt-3 flex flex-col gap-2">
