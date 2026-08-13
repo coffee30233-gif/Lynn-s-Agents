@@ -9,6 +9,10 @@ import { createClient } from "@/lib/supabase/server";
 import { appendMessage, createConversation } from "@/lib/conversations/queries";
 import { getUserMemories } from "@/lib/memory/queries";
 
+// Panelists run in parallel but the synthesis call is sequential after them,
+// and Vercel's default (10s on Hobby) is nowhere near enough for that chain.
+export const maxDuration = 60;
+
 const MODE: AgentMode = "chat";
 
 export async function POST(req: NextRequest) {

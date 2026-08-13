@@ -9,6 +9,10 @@ import { createClient } from "@/lib/supabase/server";
 import { appendMessage, createConversation, getConversationWithMessages } from "@/lib/conversations/queries";
 import { getUserMemories } from "@/lib/memory/queries";
 
+// Vercel's default serverless timeout (10s on Hobby) is too short once
+// multi-turn history + Google Search grounding make Gemini calls slower.
+export const maxDuration = 60;
+
 function isValidMode(mode: unknown): mode is AgentMode {
   return typeof mode === "string" && ["chat", "think", "plan", "learn", "do"].includes(mode);
 }
