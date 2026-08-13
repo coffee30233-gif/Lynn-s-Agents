@@ -5,11 +5,14 @@ import { listConversationsForUser } from "@/lib/conversations/queries";
 import { getCharacterById } from "@/lib/characters/registry";
 
 function formatDate(iso: string): string {
+  // Explicit timeZone — this renders server-side, and the server's default
+  // TZ (UTC on Vercel) isn't the user's, so it must not be left implicit.
   return new Date(iso).toLocaleString("zh-TW", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Taipei",
   });
 }
 

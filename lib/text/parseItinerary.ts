@@ -4,15 +4,18 @@ export interface ItinerarySection {
   content: string;
 }
 
-const PERIOD_PATTERN = /^(🌅|☀️|🌤️|🌙)\s*(清晨|上午|下午|晚上)/;
+// 🌦️ 實用資訊 is included as a boundary too (not just the four time periods) —
+// otherwise it has no marker of its own to stop at and gets swallowed into
+// whichever time-of-day section happens to come last.
+const PERIOD_PATTERN = /^(🌅|☀️|🌤️|🌙|🌦️)\s*(清晨|上午|下午|晚上|實用資訊)/;
 
 /**
- * Splits saved plan content into a leading "intro" (overview, practical
- * info, anything before the first time-of-day marker) plus one section per
- * 🌅清晨/☀️上午/🌤️下午/🌙晚上 marker, so the detail page can render each
- * period as its own card instead of one wall of text. Plans that don't use
- * these markers just come back with an empty sections array — intro holds
- * everything, and the page falls back to today's single-block rendering.
+ * Splits saved plan content into a leading "intro" (overview, anything
+ * before the first marker) plus one section per 🌅清晨/☀️上午/🌤️下午/🌙晚上/
+ * 🌦️實用資訊 marker, so the detail page can render each as its own card
+ * instead of one wall of text. Plans that don't use these markers just come
+ * back with an empty sections array — intro holds everything, and the page
+ * falls back to today's single-block rendering.
  */
 export function parseItinerary(content: string): { intro: string; sections: ItinerarySection[] } {
   const lines = content.split("\n");
