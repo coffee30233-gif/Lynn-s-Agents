@@ -7,6 +7,7 @@ import { SourceLinks } from "@/components/SourceLinks";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
 import { parseItinerary } from "@/lib/text/parseItinerary";
 import { findDateInconsistencies } from "@/lib/text/verifyDates";
+import { WeatherLookup } from "@/components/WeatherLookup";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -98,6 +99,10 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
             <SourceLinks sources={plan.sources} />
           </div>
         )}
+
+        <div className="mt-4">
+          <WeatherLookup />
+        </div>
       </div>
     </main>
   );
