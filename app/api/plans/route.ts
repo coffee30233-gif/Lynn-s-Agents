@@ -10,7 +10,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Plans require Supabase to be configured" }, { status: 501 });
   }
 
-  let body: { title?: string; location?: string; content?: string; conversationId?: string };
+  let body: {
+    title?: string;
+    location?: string;
+    eventDate?: string;
+    content?: string;
+    conversationId?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -33,6 +39,7 @@ export async function POST(req: NextRequest) {
   const id = await createPlan(supabase, user.id, {
     title,
     location: body.location?.trim(),
+    eventDate: body.eventDate?.trim(),
     content,
     sourceConversationId: body.conversationId,
   });

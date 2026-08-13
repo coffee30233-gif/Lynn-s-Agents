@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { ChatMessage, CharacterProfile } from "@/types";
 import { SourceLinks } from "./SourceLinks";
 import { SavePlanButton } from "./SavePlanButton";
+import { stripMarkdown } from "@/lib/text/stripMarkdown";
 
 export function ChatBubble({
   message,
@@ -13,6 +14,7 @@ export function ChatBubble({
   conversationId?: string;
 }) {
   const isUser = message.role === "user";
+  const content = isUser ? message.content : stripMarkdown(message.content);
 
   return (
     <div className={`flex animate-fade-in items-end gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -29,12 +31,12 @@ export function ChatBubble({
               : "rounded-bl-sm border border-white/10 bg-white/[0.05] text-white/90"
           }`}
         >
-          {message.content}
+          {content}
         </div>
         {!isUser && (
           <>
             <SourceLinks sources={message.sources} />
-            <SavePlanButton content={message.content} conversationId={conversationId} />
+            <SavePlanButton content={content} conversationId={conversationId} />
           </>
         )}
       </div>

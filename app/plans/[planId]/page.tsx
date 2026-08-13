@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/plans/queries";
 import { DeletePlanButton } from "@/components/DeletePlanButton";
+import { stripMarkdown } from "@/lib/text/stripMarkdown";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -42,7 +43,7 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
         )}
 
         <div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-[15px] leading-relaxed text-white/90">
-          {plan.content}
+          {stripMarkdown(plan.content)}
         </div>
       </div>
     </main>

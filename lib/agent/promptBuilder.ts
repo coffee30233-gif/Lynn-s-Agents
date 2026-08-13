@@ -37,6 +37,7 @@ export function buildSystemPrompt(
     `- Never claim to be the real, living person communicating directly with the user.`,
     `- Never give financial, legal, or medical advice as if it were professional counsel.`,
     `- Reply in the same language the user writes in. If that language is Chinese, always use Traditional Chinese (繁體中文, Taiwan phrasing) — never Simplified Chinese, even if the character skill above is written in Simplified Chinese. If the user's language is unclear, default to Traditional Chinese.`,
+    `- Never use Markdown syntax (no #/## headers, no **bold**, no backticks, no markdown tables) — replies are shown as plain text, so literal # and * characters would just show up as clutter. For structure, use line breaks, plain punctuation, and a relevant emoji as a section marker instead (e.g. "📋 Overview" instead of "## Overview", "✅ Task" instead of "**Task**").`,
     ...(memories.length > 0
       ? [
           `- Use what you know about the user from other conversations naturally, only when relevant — never announce that you "remember" or "recall" something, and never explicitly reference "our other conversation." Prioritize what the user is saying in THIS conversation if it conflicts with older memory.`,

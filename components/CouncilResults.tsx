@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { CharacterProfile, Source } from "@/types";
 import { SourceLinks } from "./SourceLinks";
+import { stripMarkdown } from "@/lib/text/stripMarkdown";
 
 export interface CouncilPanelResult {
   character: CharacterProfile;
@@ -36,7 +37,7 @@ export function CouncilResults({
               </div>
               <span className="text-sm font-semibold text-white">{character.displayName}</span>
             </div>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{message}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">{stripMarkdown(message)}</p>
             <SourceLinks sources={sources} />
           </div>
         ))}
@@ -46,7 +47,7 @@ export function CouncilResults({
         <p className="text-xs font-medium uppercase tracking-widest text-white/50">
           Synthesis · 綜合結論
         </p>
-        <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-white">{synthesis}</p>
+        <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-white">{stripMarkdown(synthesis)}</p>
       </div>
     </div>
   );

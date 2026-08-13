@@ -25,5 +25,7 @@ export function buildSynthesisPrompt(question: string, responses: CouncilRespons
     `Reply in the same language the user's question is written in. If that language is Chinese, always`,
     `use Traditional Chinese (繁體中文, Taiwan phrasing) — never Simplified Chinese, even if a panelist's`,
     `own answer above is in Simplified Chinese. If unclear, default to Traditional Chinese.`,
+    `Never use Markdown syntax (no #/## headers, no **bold**) in your answer — it's shown as plain text.`,
+    `Use line breaks and a relevant emoji as a section marker instead, if you need structure.`,
   ].join("\n");
 }

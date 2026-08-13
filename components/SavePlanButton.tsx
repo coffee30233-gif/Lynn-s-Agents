@@ -13,6 +13,7 @@ export function SavePlanButton({
   const [state, setState] = useState<"idle" | "form" | "saving" | "saved" | "error">("idle");
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
+  const [eventDate, setEventDate] = useState("");
 
   async function handleSave() {
     if (!title.trim()) return;
@@ -21,7 +22,13 @@ export function SavePlanButton({
       const res = await fetch("/api/plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), location: location.trim(), content, conversationId }),
+        body: JSON.stringify({
+          title: title.trim(),
+          location: location.trim(),
+          eventDate,
+          content,
+          conversationId,
+        }),
       });
       if (!res.ok) throw new Error();
       setState("saved");
@@ -63,6 +70,12 @@ export function SavePlanButton({
         onChange={(e) => setLocation(e.target.value)}
         placeholder="地點關鍵字（選填，用來產生地圖連結）"
         className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-white placeholder:text-white/30 focus:border-white/25 focus:outline-none"
+      />
+      <input
+        type="date"
+        value={eventDate}
+        onChange={(e) => setEventDate(e.target.value)}
+        className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-white placeholder:text-white/30 focus:border-white/25 focus:outline-none [color-scheme:dark]"
       />
       <div className="flex items-center gap-3">
         <button

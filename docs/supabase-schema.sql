@@ -83,13 +83,20 @@ create table if not exists plans (
   -- Free-text location keyword the user typed at save time — used to build
   -- a Google Maps search link, not parsed out of the AI's reply.
   location                text,
+  -- The activity's actual date (user-entered at save time, like location) —
+  -- separate from created_at, which is just when the plan was saved.
+  event_date              date,
   content                 text not null,
   source_conversation_id  uuid references conversations on delete set null,
   created_at              timestamptz not null default now()
 );
 
+alter table plans add column if not exists event_date date;
+
 create index if not exists plans_user_id_created_at_idx
   on plans (user_id, created_at desc);
+create index if not exists plans_user_id_event_date_idx
+  on plans (user_id, event_date);
 
 alter table plans enable row level security;
 
