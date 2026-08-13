@@ -6,6 +6,7 @@ import { DeletePlanButton } from "@/components/DeletePlanButton";
 import { SourceLinks } from "@/components/SourceLinks";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
 import { parseItinerary } from "@/lib/text/parseItinerary";
+import { findDateInconsistencies } from "@/lib/text/verifyDates";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -24,6 +25,9 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
   const { intro, sections } = parseItinerary(stripMarkdown(plan.content));
   const hasUnverifiedPracticalInfo =
     plan.sources.length === 0 && sections.some((s) => s.label === "實用資訊");
+  // Reference the date the plan was actually written, not "now" — viewing a
+  // months-old saved plan shouldn't roll its dates into next year.
+  const dateIssues = findDateInconsistencies(plan.content, new Date(plan.createdAt));
 
   return (
     <main className="min-h-screen bg-ink-950">
@@ -41,6 +45,16 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
           <p className="mt-2 text-sm text-amber-300/80">
             ⚠️ 這份行程沒有搜尋來源佐證，天氣／交通等資訊可能不準確，請自行查證後再行動。
           </p>
+        )}
+
+        {dateIssues.length > 0 && (
+          <div className="mt-2 text-sm text-red-300/90">
+            {dateIssues.map((issue, i) => (
+              <p key={i}>
+                ⚠️ 「{issue.raw}」日期與星期對不上——{issue.raw.split(/[（(]/)[0]}實際上是{issue.actualWeekday}，不是{issue.statedWeekday}。
+              </p>
+            ))}
+          </div>
         )}
 
         {plan.location && (

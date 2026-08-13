@@ -3,6 +3,7 @@ import type { ChatMessage, CharacterProfile } from "@/types";
 import { SourceLinks } from "./SourceLinks";
 import { SavePlanButton } from "./SavePlanButton";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
+import { findDateInconsistencies } from "@/lib/text/verifyDates";
 
 export function ChatBubble({
   message,
@@ -27,6 +28,11 @@ export function ChatBubble({
     content.includes("實用資訊") &&
     (!message.sources || message.sources.length === 0);
 
+  // Same idea, narrower and fully deterministic: if the reply states both a
+  // date and a weekday, check them against a real calendar rather than
+  // trusting the model got the pairing right.
+  const dateIssues = isUser ? [] : findDateInconsistencies(content);
+
   return (
     <div className={`flex animate-fade-in items-end gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
       {!isUser && (
@@ -50,6 +56,15 @@ export function ChatBubble({
               <p className="mt-1.5 text-xs text-amber-300/80">
                 ⚠️ 這則回覆沒有搜尋來源佐證，天氣／交通等資訊可能不準確，請自行查證後再行動。
               </p>
+            )}
+            {dateIssues.length > 0 && (
+              <div className="mt-1.5 text-xs text-red-300/90">
+                {dateIssues.map((issue, i) => (
+                  <p key={i}>
+                    ⚠️ 「{issue.raw}」日期與星期對不上——{issue.raw.split(/[（(]/)[0]}實際上是{issue.actualWeekday}，不是{issue.statedWeekday}。
+                  </p>
+                ))}
+              </div>
             )}
             <SourceLinks sources={message.sources} />
             <SavePlanButton content={content} sources={message.sources} conversationId={conversationId} />
