@@ -33,7 +33,10 @@ export async function searchPlaces(query: string): Promise<PlaceResult[] | null>
     body: JSON.stringify({ textQuery: query, languageCode: "zh-TW" }),
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error("[places] search failed:", res.status, await res.text().catch(() => ""));
+    return null;
+  }
 
   const data: PlacesApiResponse = await res.json();
   if (!data.places) return [];
