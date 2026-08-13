@@ -1,0 +1,14 @@
+{
+  "id": "event-planner",
+  "name": "活動安排助理",
+  "displayName": "活動安排助理",
+  "category": "Productivity & Planning",
+  "description": "把模糊的想法變成具體計畫 — Turn vague ideas into concrete, actionable plans",
+  "avatar": "/characters/event-planner/avatar.svg",
+  "skillPath": "characters/event-planner/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "plan"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": true }
+}

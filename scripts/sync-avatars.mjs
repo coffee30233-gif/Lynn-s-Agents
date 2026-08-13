@@ -19,7 +19,7 @@ const ids = fs.readdirSync(charactersDir, { withFileTypes: true })
 
 for (const id of ids) {
   const srcDir = path.join(charactersDir, id);
-  const files = fs.readdirSync(srcDir).filter((f) => /^avatar\.(jpg|jpeg|png|webp)$/i.test(f));
+  const files = fs.readdirSync(srcDir).filter((f) => /^avatar\.(jpg|jpeg|png|webp|svg)$/i.test(f));
   if (files.length === 0) continue;
 
   const destDir = path.join(publicCharactersDir, id);
