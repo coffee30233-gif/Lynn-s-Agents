@@ -17,6 +17,9 @@ export async function SiteHeader() {
   return (
     <div className="flex items-center justify-end gap-4 text-sm">
       <span className="text-white/40">{user.email}</span>
+      <Link href="/plans" className="text-white/60 transition-colors hover:text-white">
+        我的行程 · Plans
+      </Link>
       <Link href="/history" className="text-white/60 transition-colors hover:text-white">
         歷史紀錄 · History
       </Link>

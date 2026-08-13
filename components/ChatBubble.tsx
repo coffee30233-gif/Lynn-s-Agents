@@ -1,13 +1,16 @@
 import Image from "next/image";
 import type { ChatMessage, CharacterProfile } from "@/types";
 import { SourceLinks } from "./SourceLinks";
+import { SavePlanButton } from "./SavePlanButton";
 
 export function ChatBubble({
   message,
   character,
+  conversationId,
 }: {
   message: ChatMessage;
   character: CharacterProfile;
+  conversationId?: string;
 }) {
   const isUser = message.role === "user";
 
@@ -28,7 +31,12 @@ export function ChatBubble({
         >
           {message.content}
         </div>
-        {!isUser && <SourceLinks sources={message.sources} />}
+        {!isUser && (
+          <>
+            <SourceLinks sources={message.sources} />
+            <SavePlanButton content={message.content} conversationId={conversationId} />
+          </>
+        )}
       </div>
     </div>
   );

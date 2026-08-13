@@ -27,6 +27,12 @@ export function ChatHeader({ character }: { character: CharacterProfile }) {
         </div>
 
         <Link
+          href="/plans"
+          className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"
+        >
+          我的行程
+        </Link>
+        <Link
           href="/history"
           className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"
         >

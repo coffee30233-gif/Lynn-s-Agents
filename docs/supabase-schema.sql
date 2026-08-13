@@ -74,6 +74,32 @@ alter table messages add column if not exists character_id text;
 -- re-run, safe on a fresh database.
 alter table messages add column if not exists sources jsonb;
 
+-- Migration: Saved plans ("儲存為行程"). Same rules as above — safe to
+-- re-run, safe on a fresh database.
+create table if not exists plans (
+  id                      uuid primary key default gen_random_uuid(),
+  user_id                 uuid references auth.users not null,
+  title                   text not null,
+  -- Free-text location keyword the user typed at save time — used to build
+  -- a Google Maps search link, not parsed out of the AI's reply.
+  location                text,
+  content                 text not null,
+  source_conversation_id  uuid references conversations on delete set null,
+  created_at              timestamptz not null default now()
+);
+
+create index if not exists plans_user_id_created_at_idx
+  on plans (user_id, created_at desc);
+
+alter table plans enable row level security;
+
+create policy "plans_select_own" on plans
+  for select using (auth.uid() = user_id);
+create policy "plans_insert_own" on plans
+  for insert with check (auth.uid() = user_id);
+create policy "plans_delete_own" on plans
+  for delete using (auth.uid() = user_id);
+
 -- After running this:
 -- 1. Authentication -> Providers -> make sure "Email" is enabled.
 -- 2. Authentication -> URL Configuration -> add your dev and prod origins

@@ -90,7 +90,7 @@ export function ChatView({
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6">
         {messages.map((message) => (
-          <ChatBubble key={message.id} message={message} character={character} />
+          <ChatBubble key={message.id} message={message} character={character} conversationId={conversationId} />
         ))}
 
         {status === "sending" && <ThinkingBubble character={character} />}
