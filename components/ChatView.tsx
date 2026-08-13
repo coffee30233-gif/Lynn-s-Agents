@@ -33,17 +33,23 @@ export function ChatView({
   );
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "error">("idle");
+  const [isSlow, setIsSlow] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>(initialConversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastSentTextRef = useRef<string>("");
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
 
+  useEffect(() => () => clearTimeout(slowTimerRef.current), []);
+
   async function sendText(text: string) {
     lastSentTextRef.current = text;
     setStatus("sending");
+    setIsSlow(false);
+    slowTimerRef.current = setTimeout(() => setIsSlow(true), 8000);
 
     try {
       const res = await fetch("/api/chat", {
@@ -68,6 +74,9 @@ export function ChatView({
       setStatus("idle");
     } catch {
       setStatus("error");
+    } finally {
+      clearTimeout(slowTimerRef.current);
+      setIsSlow(false);
     }
   }
 
@@ -93,7 +102,16 @@ export function ChatView({
           <ChatBubble key={message.id} message={message} character={character} conversationId={conversationId} />
         ))}
 
-        {status === "sending" && <ThinkingBubble character={character} />}
+        {status === "sending" && (
+          <div className="flex flex-col gap-1.5">
+            <ThinkingBubble character={character} />
+            {isSlow && (
+              <p className="pl-9 text-xs text-white/30">
+                查詢資料中，可能需要多一點時間... · Still working on it — this can take a little longer when checking sources.
+              </p>
+            )}
+          </div>
+        )}
 
         {status === "error" && (
           <div className="flex items-center gap-2 self-start rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
