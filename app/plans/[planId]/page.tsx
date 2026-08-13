@@ -22,6 +22,8 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
   if (!plan) notFound();
 
   const { intro, sections } = parseItinerary(stripMarkdown(plan.content));
+  const hasUnverifiedPracticalInfo =
+    plan.sources.length === 0 && sections.some((s) => s.label === "實用資訊");
 
   return (
     <main className="min-h-screen bg-ink-950">
@@ -34,6 +36,12 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
         </div>
 
         <h1 className="text-2xl font-bold text-white">{plan.title}</h1>
+
+        {hasUnverifiedPracticalInfo && (
+          <p className="mt-2 text-sm text-amber-300/80">
+            ⚠️ 這份行程沒有搜尋來源佐證，天氣／交通等資訊可能不準確，請自行查證後再行動。
+          </p>
+        )}
 
         {plan.location && (
           <a

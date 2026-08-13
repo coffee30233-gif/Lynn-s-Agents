@@ -16,6 +16,17 @@ export function ChatBubble({
   const isUser = message.role === "user";
   const content = isUser ? message.content : stripMarkdown(message.content);
 
+  // Prompting the model not to fabricate time-sensitive info (weather, road
+  // closures, transit changes) turned out not to be reliable — it kept
+  // stating specific numbers with no search behind them. This is the
+  // deterministic backstop: no sources on a 實用資訊 reply means nothing was
+  // actually verified, whatever the text sounds like.
+  const isUnverifiedPracticalInfo =
+    !isUser &&
+    character.id === "event-planner" &&
+    content.includes("實用資訊") &&
+    (!message.sources || message.sources.length === 0);
+
   return (
     <div className={`flex animate-fade-in items-end gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
       {!isUser && (
@@ -35,6 +46,11 @@ export function ChatBubble({
         </div>
         {!isUser && (
           <>
+            {isUnverifiedPracticalInfo && (
+              <p className="mt-1.5 text-xs text-amber-300/80">
+                ⚠️ 這則回覆沒有搜尋來源佐證，天氣／交通等資訊可能不準確，請自行查證後再行動。
+              </p>
+            )}
             <SourceLinks sources={message.sources} />
             <SavePlanButton content={content} sources={message.sources} conversationId={conversationId} />
           </>
