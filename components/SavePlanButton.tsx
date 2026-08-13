@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Source } from "@/types";
-import { cleanPlanContent } from "@/lib/text/parseItinerary";
+import { cleanPlanContent, suggestPlanTitle } from "@/lib/text/parseItinerary";
 
 export function SavePlanButton({
   content,
@@ -46,7 +46,10 @@ export function SavePlanButton({
     return (
       <button
         type="button"
-        onClick={() => setState("form")}
+        onClick={() => {
+          setTitle(suggestPlanTitle(content));
+          setState("form");
+        }}
         className="mt-1.5 text-xs text-white/30 transition-colors hover:text-white/70"
       >
         儲存為行程 · Save as plan

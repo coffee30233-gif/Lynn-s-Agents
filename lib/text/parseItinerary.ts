@@ -55,3 +55,14 @@ export function cleanPlanContent(content: string): string {
   if (sections.length === 0) return content.trim();
   return sections.map((s) => `${s.emoji} ${s.label}\n${s.content}`).join("\n\n");
 }
+
+/**
+ * Pre-fills the save-as-plan title field from the 📋 活動概覽 block's
+ * "目的／名稱：" line, so the user usually just confirms instead of typing
+ * one from scratch. Falls back to "" (user types it) when that line isn't
+ * found — e.g. a freeform reply that never used the template.
+ */
+export function suggestPlanTitle(content: string): string {
+  const match = content.match(/目的(?:[／/]\s*名稱)?\s*[:：]\s*(.+)/);
+  return match ? match[1].trim() : "";
+}
