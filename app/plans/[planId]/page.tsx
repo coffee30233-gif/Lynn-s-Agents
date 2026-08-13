@@ -9,6 +9,7 @@ import { parseItinerary } from "@/lib/text/parseItinerary";
 import { findDateInconsistencies } from "@/lib/text/verifyDates";
 import { WeatherLookup } from "@/components/WeatherLookup";
 import { PlacesLookup } from "@/components/PlacesLookup";
+import { MapEmbed } from "@/components/MapEmbed";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -60,14 +61,19 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
         )}
 
         {plan.location && (
-          <a
-            href={googleMapsUrl(plan.location)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-white/50 underline decoration-white/20 underline-offset-2 hover:text-white/80"
-          >
-            📍 {plan.location} · 在 Google 地圖開啟
-          </a>
+          <>
+            <a
+              href={googleMapsUrl(plan.location)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-sm text-white/50 underline decoration-white/20 underline-offset-2 hover:text-white/80"
+            >
+              📍 {plan.location} · 在 Google 地圖開啟
+            </a>
+            <div className="mt-2">
+              <MapEmbed query={plan.location} mode="place" height={160} />
+            </div>
+          </>
         )}
 
         {intro && (
