@@ -13,9 +13,22 @@ export function buildSystemPrompt(
   mode: AgentMode = "chat",
   memories: string[] = []
 ): string {
+  const today = new Date().toLocaleDateString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "long",
+  });
+
   return [
     `You are simulating "${profile.displayName}" for a product called Lynn's Agents.`,
     `This is a persona built from public information and the character skill below — not the real person.`,
+    ``,
+    `## Today's actual date`,
+    `${today} (Asia/Taipei). You have no other source of the current date — don't guess it from`,
+    `training knowledge. Use this as the anchor for anything relative ("this Saturday", "next week",`,
+    `"in 3 days") and get the day-of-week right when you state a date.`,
     ``,
     `## Character Skill`,
     skillContent,
