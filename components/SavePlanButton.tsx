@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Source } from "@/types";
+import { cleanPlanContent } from "@/lib/text/parseItinerary";
 
 export function SavePlanButton({
   content,
@@ -29,7 +30,7 @@ export function SavePlanButton({
           title: title.trim(),
           location: location.trim(),
           eventDate,
-          content,
+          content: cleanPlanContent(content),
           sources,
           conversationId,
         }),

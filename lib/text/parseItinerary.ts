@@ -4,18 +4,19 @@ export interface ItinerarySection {
   content: string;
 }
 
-// 🌦️ 實用資訊 is included as a boundary too (not just the four time periods) —
-// otherwise it has no marker of its own to stop at and gets swallowed into
-// whichever time-of-day section happens to come last.
-const PERIOD_PATTERN = /^(🌅|☀️|🌤️|🌙|🌦️)\s*(清晨|上午|下午|晚上|實用資訊)/;
+// Every fixed header the event-planner's output template uses. Matching all
+// of them (not just the time periods) means "intro" is left holding only
+// genuine chit-chat before/outside the structured plan — which is exactly
+// what cleanPlanContent() below needs to be able to drop.
+const PERIOD_PATTERN =
+  /^(📋|✅|🌅|☀️|🌤️|🌙|🌦️)\s*(活動概覽|籌備時間軸|清晨|上午|下午|晚上|實用資訊)/;
 
 /**
- * Splits saved plan content into a leading "intro" (overview, anything
- * before the first marker) plus one section per 🌅清晨/☀️上午/🌤️下午/🌙晚上/
- * 🌦️實用資訊 marker, so the detail page can render each as its own card
- * instead of one wall of text. Plans that don't use these markers just come
- * back with an empty sections array — intro holds everything, and the page
- * falls back to today's single-block rendering.
+ * Splits saved plan content into a leading "intro" (anything before the
+ * first recognized marker) plus one section per marker, so the detail page
+ * can render each as its own card instead of one wall of text. Plans that
+ * don't use these markers just come back with an empty sections array —
+ * intro holds everything, and the page falls back to single-block rendering.
  */
 export function parseItinerary(content: string): { intro: string; sections: ItinerarySection[] } {
   const lines = content.split("\n");
@@ -40,4 +41,17 @@ export function parseItinerary(content: string): { intro: string; sections: Itin
     intro: introLines.join("\n").trim(),
     sections: sections.map((s) => ({ ...s, content: s.content.trim() })),
   };
+}
+
+/**
+ * For "儲存為行程": drops conversational filler (greetings, follow-up
+ * questions like "需要我再調整嗎？") and keeps only the structured plan
+ * sections. Replies that never used the template's markers at all (e.g. the
+ * user just chatted without triggering a full plan) are left untouched —
+ * there's nothing structured to extract, so cleaning would just delete text.
+ */
+export function cleanPlanContent(content: string): string {
+  const { sections } = parseItinerary(content);
+  if (sections.length === 0) return content.trim();
+  return sections.map((s) => `${s.emoji} ${s.label}\n${s.content}`).join("\n\n");
 }
