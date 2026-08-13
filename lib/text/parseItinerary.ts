@@ -66,3 +66,35 @@ export function suggestPlanTitle(content: string): string {
   const match = content.match(/目的(?:[／/]\s*名稱)?\s*[:：]\s*(.+)/);
   return match ? match[1].trim() : "";
 }
+
+/** Same idea as suggestPlanTitle, for the 📋 活動概覽 block's "地點／形式：" line. */
+export function suggestPlanLocation(content: string): string {
+  const match = content.match(/地點(?:[／/]\s*形式)?\s*[:：]\s*(.+)/);
+  return match ? match[1].trim() : "";
+}
+
+/**
+ * Pulls an "M月D日" out of the 📋 活動概覽 block's "時間：" line and turns it
+ * into a YYYY-MM-DD string for the <input type="date"> field. No year in the
+ * source text, so — same assumption as verifyDates.ts — it's taken to mean
+ * the nearest occurrence on/after `referenceDate`, rolling into next year if
+ * that month/day has already passed this year.
+ */
+export function suggestPlanDate(content: string, referenceDate: Date = new Date()): string {
+  const timeLine = content.match(/時間\s*[:：]\s*(.+)/)?.[1] ?? content;
+  const dateMatch = timeLine.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (!dateMatch) return "";
+
+  const month = parseInt(dateMatch[1], 10);
+  const day = parseInt(dateMatch[2], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+
+  const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  let candidate = new Date(today.getFullYear(), month - 1, day);
+  if (candidate < today) candidate = new Date(today.getFullYear() + 1, month - 1, day);
+
+  const yyyy = candidate.getFullYear();
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}

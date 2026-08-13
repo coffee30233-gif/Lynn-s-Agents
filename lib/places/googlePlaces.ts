@@ -1,3 +1,5 @@
+import { TAIWAN_COUNTIES } from "@/lib/weather/cwa";
+
 export interface PlaceResult {
   name: string;
   address: string;
@@ -50,4 +52,23 @@ export async function searchPlaces(query: string): Promise<PlaceResult[] | null>
       rating: p.rating,
       mapsUri: p.googleMapsUri!,
     }));
+}
+
+/**
+ * Resolves a free-text location (e.g. "八里左岸") to one of CWA's 22
+ * county/city names, by geocoding it via Places Text Search and checking
+ * which county name appears in the first result's formattedAddress —
+ * reuses the Places integration instead of adding a separate Geocoding
+ * API key just for this. Matches both the 臺/台 spelling variants Google
+ * addresses can use (confirmed both appear depending on the query).
+ */
+export async function resolveCounty(location: string): Promise<string | null> {
+  const results = await searchPlaces(location);
+  const address = results?.[0]?.address;
+  if (!address) return null;
+
+  return TAIWAN_COUNTIES.find((county) => {
+    const altVariant = county.replace(/^臺/, "台");
+    return address.includes(county) || address.includes(altVariant);
+  }) ?? null;
 }

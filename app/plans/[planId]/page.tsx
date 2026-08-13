@@ -10,6 +10,7 @@ import { findDateInconsistencies } from "@/lib/text/verifyDates";
 import { WeatherLookup } from "@/components/WeatherLookup";
 import { PlacesLookup } from "@/components/PlacesLookup";
 import { MapEmbed } from "@/components/MapEmbed";
+import { resolveCounty } from "@/lib/places/googlePlaces";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -31,6 +32,7 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
   // Reference the date the plan was actually written, not "now" — viewing a
   // months-old saved plan shouldn't roll its dates into next year.
   const dateIssues = findDateInconsistencies(plan.content, new Date(plan.createdAt));
+  const county = plan.location ? await resolveCounty(plan.location) : null;
 
   return (
     <main className="min-h-screen bg-ink-950">
@@ -108,7 +110,7 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
         )}
 
         <div className="mt-4 flex flex-col gap-4">
-          <WeatherLookup />
+          <WeatherLookup initialCounty={county} />
           <PlacesLookup initialLocation={plan.location ?? undefined} />
         </div>
       </div>

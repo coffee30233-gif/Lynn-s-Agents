@@ -3,7 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Source } from "@/types";
-import { cleanPlanContent, suggestPlanTitle } from "@/lib/text/parseItinerary";
+import {
+  cleanPlanContent,
+  suggestPlanTitle,
+  suggestPlanLocation,
+  suggestPlanDate,
+} from "@/lib/text/parseItinerary";
 
 export function SavePlanButton({
   content,
@@ -48,6 +53,8 @@ export function SavePlanButton({
         type="button"
         onClick={() => {
           setTitle(suggestPlanTitle(content));
+          setLocation(suggestPlanLocation(content));
+          setEventDate(suggestPlanDate(content));
           setState("form");
         }}
         className="mt-1.5 text-xs text-white/30 transition-colors hover:text-white/70"

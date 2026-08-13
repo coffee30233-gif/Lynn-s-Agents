@@ -11,8 +11,8 @@ function formatPeriod(start: string, end: string): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-export function WeatherLookup() {
-  const [county, setCounty] = useState("");
+export function WeatherLookup({ initialCounty }: { initialCounty?: string | null }) {
+  const [county, setCounty] = useState(initialCounty ?? "");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [periods, setPeriods] = useState<WeatherPeriod[] | null>(null);
 
