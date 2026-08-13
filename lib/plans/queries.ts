@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Source } from "@/types";
 
 export interface Plan {
   id: string;
@@ -6,6 +7,7 @@ export interface Plan {
   location: string | null;
   eventDate: string | null; // "YYYY-MM-DD", or null if unscheduled
   content: string;
+  sources: Source[];
   createdAt: string;
 }
 
@@ -17,6 +19,7 @@ export async function createPlan(
     location?: string;
     eventDate?: string;
     content: string;
+    sources?: Source[];
     sourceConversationId?: string;
   }
 ): Promise<string> {
@@ -28,6 +31,7 @@ export async function createPlan(
       location: input.location || null,
       event_date: input.eventDate || null,
       content: input.content,
+      sources: input.sources && input.sources.length > 0 ? input.sources : null,
       source_conversation_id: input.sourceConversationId || null,
     })
     .select("id")
@@ -43,6 +47,7 @@ function mapRow(row: {
   location: string | null;
   event_date: string | null;
   content: string;
+  sources: Source[] | null;
   created_at: string;
 }): Plan {
   return {
@@ -51,6 +56,7 @@ function mapRow(row: {
     location: row.location,
     eventDate: row.event_date,
     content: row.content,
+    sources: row.sources ?? [],
     createdAt: row.created_at,
   };
 }
@@ -58,7 +64,7 @@ function mapRow(row: {
 export async function listPlansForUser(supabase: SupabaseClient): Promise<Plan[]> {
   const { data, error } = await supabase
     .from("plans")
-    .select("id, title, location, event_date, content, created_at")
+    .select("id, title, location, event_date, content, sources, created_at")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to list plans: ${error.message}`);
@@ -68,7 +74,7 @@ export async function listPlansForUser(supabase: SupabaseClient): Promise<Plan[]
 export async function getPlan(supabase: SupabaseClient, planId: string): Promise<Plan | null> {
   const { data } = await supabase
     .from("plans")
-    .select("id, title, location, event_date, content, created_at")
+    .select("id, title, location, event_date, content, sources, created_at")
     .eq("id", planId)
     .single();
 

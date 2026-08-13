@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Source } from "@/types";
 import { createClient } from "@/lib/supabase/server";
 import { createPlan } from "@/lib/plans/queries";
 
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
     location?: string;
     eventDate?: string;
     content?: string;
+    sources?: Source[];
     conversationId?: string;
   };
   try {
@@ -41,6 +43,7 @@ export async function POST(req: NextRequest) {
     location: body.location?.trim(),
     eventDate: body.eventDate?.trim(),
     content,
+    sources: body.sources,
     sourceConversationId: body.conversationId,
   });
 

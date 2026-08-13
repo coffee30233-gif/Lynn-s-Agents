@@ -87,11 +87,15 @@ create table if not exists plans (
   -- separate from created_at, which is just when the plan was saved.
   event_date              date,
   content                 text not null,
+  -- Google Search grounding sources carried over from the chat message this
+  -- plan was saved from — [{ "title": "...", "uri": "https://..." }].
+  sources                 jsonb,
   source_conversation_id  uuid references conversations on delete set null,
   created_at              timestamptz not null default now()
 );
 
 alter table plans add column if not exists event_date date;
+alter table plans add column if not exists sources jsonb;
 
 create index if not exists plans_user_id_created_at_idx
   on plans (user_id, created_at desc);

@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { Source } from "@/types";
 
 export function SavePlanButton({
   content,
+  sources,
   conversationId,
 }: {
   content: string;
+  sources?: Source[];
   conversationId?: string;
 }) {
   const [state, setState] = useState<"idle" | "form" | "saving" | "saved" | "error">("idle");
@@ -27,6 +30,7 @@ export function SavePlanButton({
           location: location.trim(),
           eventDate,
           content,
+          sources,
           conversationId,
         }),
       });

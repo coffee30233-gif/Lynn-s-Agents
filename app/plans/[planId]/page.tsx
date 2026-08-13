@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/plans/queries";
 import { DeletePlanButton } from "@/components/DeletePlanButton";
+import { SourceLinks } from "@/components/SourceLinks";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
 import { parseItinerary } from "@/lib/text/parseItinerary";
 
@@ -66,6 +67,13 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
                 </p>
               </div>
             ))}
+          </div>
+        )}
+
+        {plan.sources.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <p className="text-sm font-semibold text-white">🔗 資料來源</p>
+            <SourceLinks sources={plan.sources} />
           </div>
         )}
       </div>
