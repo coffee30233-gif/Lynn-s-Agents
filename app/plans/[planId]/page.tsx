@@ -8,6 +8,7 @@ import { stripMarkdown } from "@/lib/text/stripMarkdown";
 import { parseItinerary } from "@/lib/text/parseItinerary";
 import { findDateInconsistencies } from "@/lib/text/verifyDates";
 import { WeatherLookup } from "@/components/WeatherLookup";
+import { PlacesLookup } from "@/components/PlacesLookup";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -100,8 +101,9 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
           </div>
         )}
 
-        <div className="mt-4">
+        <div className="mt-4 flex flex-col gap-4">
           <WeatherLookup />
+          <PlacesLookup initialLocation={plan.location ?? undefined} />
         </div>
       </div>
     </main>
