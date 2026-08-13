@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/plans/queries";
 import { DeletePlanButton } from "@/components/DeletePlanButton";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
+import { parseItinerary } from "@/lib/text/parseItinerary";
 
 function googleMapsUrl(location: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -18,6 +19,8 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
   const supabase = await createClient();
   const plan = await getPlan(supabase, params.planId);
   if (!plan) notFound();
+
+  const { intro, sections } = parseItinerary(stripMarkdown(plan.content));
 
   return (
     <main className="min-h-screen bg-ink-950">
@@ -42,9 +45,29 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
           </a>
         )}
 
-        <div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-[15px] leading-relaxed text-white/90">
-          {stripMarkdown(plan.content)}
-        </div>
+        {intro && (
+          <div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-[15px] leading-relaxed text-white/90">
+            {intro}
+          </div>
+        )}
+
+        {sections.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3">
+            {sections.map((section, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+              >
+                <p className="mb-2 text-sm font-semibold text-white">
+                  {section.emoji} {section.label}
+                </p>
+                <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/90">
+                  {section.content}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
