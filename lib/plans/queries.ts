@@ -91,6 +91,18 @@ export async function deletePlan(supabase: SupabaseClient, planId: string): Prom
   if (error) throw new Error(`Failed to delete plan: ${error.message}`);
 }
 
+export async function updatePlan(
+  supabase: SupabaseClient,
+  planId: string,
+  input: { title: string; location: string | null; eventDate: string | null }
+): Promise<void> {
+  const { error } = await supabase
+    .from("plans")
+    .update({ title: input.title, location: input.location, event_date: input.eventDate })
+    .eq("id", planId);
+  if (error) throw new Error(`Failed to update plan: ${error.message}`);
+}
+
 export async function setGoogleEventId(
   supabase: SupabaseClient,
   planId: string,
@@ -101,6 +113,11 @@ export async function setGoogleEventId(
     .update({ google_event_id: googleEventId })
     .eq("id", planId);
   if (error) throw new Error(`Failed to save google_event_id: ${error.message}`);
+}
+
+export async function clearGoogleEventId(supabase: SupabaseClient, planId: string): Promise<void> {
+  const { error } = await supabase.from("plans").update({ google_event_id: null }).eq("id", planId);
+  if (error) throw new Error(`Failed to clear google_event_id: ${error.message}`);
 }
 
 export async function hasGoogleCalendarConnected(supabase: SupabaseClient, userId: string): Promise<boolean> {

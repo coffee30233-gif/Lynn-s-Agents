@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlan, hasGoogleCalendarConnected } from "@/lib/plans/queries";
 import { DeletePlanButton } from "@/components/DeletePlanButton";
+import { EditPlanButton } from "@/components/EditPlanButton";
 import { SourceLinks } from "@/components/SourceLinks";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
 import { parseItinerary } from "@/lib/text/parseItinerary";
@@ -47,7 +48,15 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
           <Link href="/plans" className="text-sm text-white/40 transition-colors hover:text-white/80">
             ← 我的行程 · Plans
           </Link>
-          <DeletePlanButton planId={plan.id} />
+          <div className="flex items-center gap-4">
+            <EditPlanButton
+              planId={plan.id}
+              initialTitle={plan.title}
+              initialLocation={plan.location}
+              initialEventDate={plan.eventDate}
+            />
+            <DeletePlanButton planId={plan.id} />
+          </div>
         </div>
 
         <h1 className="text-2xl font-bold text-white">{plan.title}</h1>
