@@ -111,6 +111,30 @@ create policy "plans_insert_own" on plans
 create policy "plans_delete_own" on plans
   for delete using (auth.uid() = user_id);
 
+-- Migration: Google Calendar sync ("加入 Google 行事曆"). Same rules as
+-- above — safe to re-run, safe on a fresh database.
+create table if not exists google_calendar_tokens (
+  user_id       uuid primary key references auth.users on delete cascade,
+  refresh_token text not null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+alter table google_calendar_tokens enable row level security;
+
+create policy "google_calendar_tokens_select_own" on google_calendar_tokens
+  for select using (auth.uid() = user_id);
+create policy "google_calendar_tokens_insert_own" on google_calendar_tokens
+  for insert with check (auth.uid() = user_id);
+create policy "google_calendar_tokens_update_own" on google_calendar_tokens
+  for update using (auth.uid() = user_id);
+create policy "google_calendar_tokens_delete_own" on google_calendar_tokens
+  for delete using (auth.uid() = user_id);
+
+-- Which Google Calendar event (if any) a plan has been pushed to, so
+-- "加入 Google 行事曆" can update instead of duplicate on a second click.
+alter table plans add column if not exists google_event_id text;
+
 -- After running this:
 -- 1. Authentication -> Providers -> make sure "Email" is enabled.
 -- 2. Authentication -> URL Configuration -> add your dev and prod origins

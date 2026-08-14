@@ -9,6 +9,7 @@ export interface Plan {
   content: string;
   sources: Source[];
   createdAt: string;
+  googleEventId: string | null;
 }
 
 export async function createPlan(
@@ -49,6 +50,7 @@ function mapRow(row: {
   content: string;
   sources: Source[] | null;
   created_at: string;
+  google_event_id: string | null;
 }): Plan {
   return {
     id: row.id,
@@ -58,13 +60,16 @@ function mapRow(row: {
     content: row.content,
     sources: row.sources ?? [],
     createdAt: row.created_at,
+    googleEventId: row.google_event_id,
   };
 }
+
+const PLAN_COLUMNS = "id, title, location, event_date, content, sources, created_at, google_event_id";
 
 export async function listPlansForUser(supabase: SupabaseClient): Promise<Plan[]> {
   const { data, error } = await supabase
     .from("plans")
-    .select("id, title, location, event_date, content, sources, created_at")
+    .select(PLAN_COLUMNS)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to list plans: ${error.message}`);
@@ -74,7 +79,7 @@ export async function listPlansForUser(supabase: SupabaseClient): Promise<Plan[]
 export async function getPlan(supabase: SupabaseClient, planId: string): Promise<Plan | null> {
   const { data } = await supabase
     .from("plans")
-    .select("id, title, location, event_date, content, sources, created_at")
+    .select(PLAN_COLUMNS)
     .eq("id", planId)
     .single();
 
@@ -84,4 +89,34 @@ export async function getPlan(supabase: SupabaseClient, planId: string): Promise
 export async function deletePlan(supabase: SupabaseClient, planId: string): Promise<void> {
   const { error } = await supabase.from("plans").delete().eq("id", planId);
   if (error) throw new Error(`Failed to delete plan: ${error.message}`);
+}
+
+export async function setGoogleEventId(
+  supabase: SupabaseClient,
+  planId: string,
+  googleEventId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("plans")
+    .update({ google_event_id: googleEventId })
+    .eq("id", planId);
+  if (error) throw new Error(`Failed to save google_event_id: ${error.message}`);
+}
+
+export async function hasGoogleCalendarConnected(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("google_calendar_tokens")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+export async function getGoogleRefreshToken(supabase: SupabaseClient, userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("google_calendar_tokens")
+    .select("refresh_token")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data?.refresh_token ?? null;
 }
