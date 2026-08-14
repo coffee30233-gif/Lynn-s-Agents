@@ -8,7 +8,7 @@
   "skillPath": "characters/english-coach/SKILL.md",
   "enabled": true,
   "modes": ["chat", "learn"],
-  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "voice": { "enabled": true, "provider": "gemini-live", "voiceId": "Kore" },
   "tools": [],
   "memory": { "enabled": true }
 }
