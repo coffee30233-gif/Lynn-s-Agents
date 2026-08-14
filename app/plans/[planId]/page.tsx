@@ -42,8 +42,8 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
   const county = plan.location ? await resolveCounty(plan.location) : null;
 
   return (
-    <main className="min-h-screen bg-ink-950">
-      <div className="mx-auto max-w-2xl px-6 py-16">
+    <main className="min-h-dvh bg-ink-950">
+      <div className="mx-auto max-w-2xl px-6 py-8 sm:py-16">
         <div className="mb-8 flex items-center justify-between">
           <Link href="/plans" className="text-sm text-white/40 transition-colors hover:text-white/80">
             ← 我的行程 · Plans

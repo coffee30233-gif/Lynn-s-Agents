@@ -24,3 +24,14 @@ body {
   background-color: #282c3a;
   border-radius: 999px;
 }
+
+/* Clears the notch/status bar and home indicator when running as an
+   installed PWA (viewport-fit=cover lets content draw under them instead of
+   iOS painting a plain bar there) — applied to the sticky chat header/input
+   bars, the only fixed/sticky edges in the app. */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

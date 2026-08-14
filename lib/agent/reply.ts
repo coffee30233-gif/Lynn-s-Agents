@@ -1,5 +1,6 @@
 import type { AgentMode, Source } from "@/types";
 import { callN8nChat, N8nError, type ConversationTurn } from "@/lib/n8n/client";
+import { toTraditionalChinese } from "@/lib/text/toTraditional";
 
 // Mock fallback for local dev when N8N_WEBHOOK_URL isn't configured yet.
 // See docs/n8n-workflow.md for the real workflow this hands off to once it is.
@@ -40,7 +41,7 @@ export async function getCharacterReply(
 
   try {
     const response = await callN8nChat({ characterId, systemPrompt, messages, conversationId, mode });
-    return { ok: true, message: response.message, sources: response.sources ?? [] };
+    return { ok: true, message: toTraditionalChinese(response.message), sources: response.sources ?? [] };
   } catch (err) {
     if (err instanceof N8nError) return { ok: false, error: err.message, status: err.status };
     return { ok: false, error: "Unexpected error calling n8n", status: 500 };

@@ -67,7 +67,9 @@ export function ChatBubble({
               </div>
             )}
             <SourceLinks sources={message.sources} />
-            <SavePlanButton content={content} sources={message.sources} conversationId={conversationId} />
+            {character.id === "event-planner" && (
+              <SavePlanButton content={content} sources={message.sources} conversationId={conversationId} />
+            )}
           </>
         )}
       </div>

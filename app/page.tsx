@@ -8,11 +8,11 @@ export default function HomePage() {
   const characters = getAllCharacters();
 
   return (
-    <main className="min-h-screen bg-ink-950">
-      <div className="mx-auto max-w-6xl px-6 py-20 sm:py-28">
+    <main className="min-h-dvh bg-ink-950">
+      <div className="mx-auto max-w-6xl px-6 py-10 sm:py-28">
         <SiteHeader />
 
-        <header className="mb-16 flex flex-col items-center text-center">
+        <header className="mb-10 sm:mb-16 flex flex-col items-center text-center">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Lynn&rsquo;s Agents
           </h1>

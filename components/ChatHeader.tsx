@@ -5,7 +5,7 @@ import { DisclaimerBadge } from "./DisclaimerBadge";
 
 export function ChatHeader({ character }: { character: CharacterProfile }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-white/10 bg-ink-950/80 backdrop-blur-md">
+    <header className="safe-top sticky top-0 z-10 border-b border-white/10 bg-ink-950/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <Link
           href="/"
@@ -26,12 +26,14 @@ export function ChatHeader({ character }: { character: CharacterProfile }) {
           <DisclaimerBadge compact />
         </div>
 
-        <Link
-          href="/plans"
-          className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"
-        >
-          我的行程
-        </Link>
+        {character.id === "event-planner" && (
+          <Link
+            href="/plans"
+            className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"
+          >
+            我的行程
+          </Link>
+        )}
         <Link
           href="/history"
           className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"

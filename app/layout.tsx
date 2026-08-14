@@ -18,6 +18,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#08090c",
+  // Lets content draw under the notch/home-indicator instead of iOS just
+  // painting a solid bar there — combined with the safe-top/safe-bottom
+  // classes below so the sticky chat header/input still clear those areas.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

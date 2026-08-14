@@ -27,7 +27,7 @@ export default async function CouncilArchivePage({
     .filter((p): p is NonNullable<typeof p> => p !== null);
 
   return (
-    <main className="min-h-screen bg-ink-950">
+    <main className="min-h-dvh bg-ink-950">
       <div className="mx-auto max-w-3xl px-4 py-10">
         <Link href="/history" className="text-sm text-white/40 transition-colors hover:text-white/80">
           ← 歷史紀錄 · History

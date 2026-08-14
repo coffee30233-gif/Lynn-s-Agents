@@ -94,7 +94,7 @@ export function ChatView({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-ink-950">
+    <div className="flex min-h-dvh flex-col bg-ink-950">
       <ChatHeader character={character} />
 
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6">
@@ -129,7 +129,7 @@ export function ChatView({
         <div ref={bottomRef} />
       </div>
 
-      <div className="sticky bottom-0 border-t border-white/10 bg-ink-950/80 backdrop-blur-md">
+      <div className="safe-bottom sticky bottom-0 border-t border-white/10 bg-ink-950/80 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 py-4">
           <ChatInput value={input} onChange={setInput} onSend={handleSend} disabled={status === "sending"} />
         </div>
