@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listPlansForUser, hasGoogleCalendarConnected } from "@/lib/plans/queries";
+import { syncAllPlansToGoogleCalendar } from "@/lib/plans/googleSync";
 import { PlansCalendar } from "@/components/PlansCalendar";
 
 export default async function PlansPage({
@@ -28,6 +29,7 @@ export default async function PlansPage({
     data: { user },
   } = await supabase.auth.getUser();
   const calendarConnected = user ? await hasGoogleCalendarConnected(supabase, user.id) : false;
+  if (user && calendarConnected) await syncAllPlansToGoogleCalendar(supabase, user.id, plans);
 
   return (
     <main className="safe-top min-h-dvh bg-ink-950">
@@ -41,7 +43,7 @@ export default async function PlansPage({
 
         {searchParams.calendar_connected && (
           <p className="mb-6 text-sm text-emerald-300/90">
-            ✓ 已連接 Google 行事曆，之後可以在行程頁面把行程加入行事曆。
+            ✓ 已連接 Google 行事曆，有日期的行程會自動同步過去。
           </p>
         )}
         {searchParams.calendar_error && (

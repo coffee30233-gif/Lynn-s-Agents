@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPlan, hasGoogleCalendarConnected } from "@/lib/plans/queries";
+import { syncAllPlansToGoogleCalendar } from "@/lib/plans/googleSync";
 import { DeletePlanButton } from "@/components/DeletePlanButton";
 import { EditPlanButton } from "@/components/EditPlanButton";
 import { SourceLinks } from "@/components/SourceLinks";
@@ -11,7 +12,6 @@ import { findDateInconsistencies } from "@/lib/text/verifyDates";
 import { WeatherLookup } from "@/components/WeatherLookup";
 import { PlacesLookup } from "@/components/PlacesLookup";
 import { MapEmbed } from "@/components/MapEmbed";
-import { GoogleCalendarButton } from "@/components/GoogleCalendarButton";
 import { resolveCounty } from "@/lib/places/googlePlaces";
 
 function googleMapsUrl(location: string): string {
@@ -32,6 +32,7 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
     data: { user },
   } = await supabase.auth.getUser();
   const calendarConnected = user ? await hasGoogleCalendarConnected(supabase, user.id) : false;
+  if (user && calendarConnected) await syncAllPlansToGoogleCalendar(supabase, user.id, [plan]);
 
   const { intro, sections } = parseItinerary(stripMarkdown(plan.content));
   const hasUnverifiedPracticalInfo =
@@ -61,14 +62,8 @@ export default async function PlanDetailPage({ params }: { params: { planId: str
 
         <h1 className="text-2xl font-bold text-white">{plan.title}</h1>
 
-        {plan.eventDate ? (
-          <GoogleCalendarButton
-            planId={plan.id}
-            connected={calendarConnected}
-            initialSynced={Boolean(plan.googleEventId)}
-          />
-        ) : (
-          <p className="mt-2 text-xs text-white/30">此行程沒有日期，補上日期後才能加入 Google 行事曆</p>
+        {!plan.eventDate && (
+          <p className="mt-2 text-xs text-white/30">此行程沒有日期，不會出現在 Google 行事曆上</p>
         )}
 
         {hasUnverifiedPracticalInfo && (
