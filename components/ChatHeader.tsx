@@ -35,7 +35,7 @@ export function ChatHeader({ character }: { character: CharacterProfile }) {
           </Link>
         )}
         <Link
-          href="/history"
+          href={`/history?characterId=${character.id}`}
           className="shrink-0 text-xs font-medium text-white/40 transition-colors hover:text-white/80"
         >
           歷史紀錄

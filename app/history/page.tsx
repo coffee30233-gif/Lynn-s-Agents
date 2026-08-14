@@ -16,7 +16,11 @@ function formatDate(iso: string): string {
   });
 }
 
-export default async function HistoryPage() {
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: { characterId?: string };
+}) {
   const supabaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
@@ -31,16 +35,23 @@ export default async function HistoryPage() {
     );
   }
 
+  const filterCharacter = searchParams.characterId ? getCharacterById(searchParams.characterId) : null;
+
   const supabase = await createClient();
-  const conversations = await listConversationsForUser(supabase);
+  const conversations = await listConversationsForUser(supabase, filterCharacter?.id);
 
   return (
     <main className="safe-top min-h-dvh bg-ink-950">
       <div className="mx-auto max-w-2xl px-6 py-8 sm:py-16">
         <div className="mb-10 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">歷史紀錄 · History</h1>
-          <Link href="/" className="text-sm text-white/40 transition-colors hover:text-white/80">
-            ← Lynn&rsquo;s Agents
+          <h1 className="text-2xl font-bold text-white">
+            {filterCharacter ? `${filterCharacter.displayName} · 歷史紀錄` : "歷史紀錄 · History"}
+          </h1>
+          <Link
+            href={filterCharacter ? `/chat/${filterCharacter.id}` : "/"}
+            className="text-sm text-white/40 transition-colors hover:text-white/80"
+          >
+            ← {filterCharacter ? filterCharacter.displayName : "Lynn's Agents"}
           </Link>
         </div>
 

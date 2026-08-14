@@ -141,12 +141,22 @@ export async function getCouncilConversation(
 }
 
 export async function listConversationsForUser(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  characterId?: string
 ): Promise<ConversationSummary[]> {
-  const { data: conversations, error } = await supabase
+  let query = supabase
     .from("conversations")
     .select("id, character_id, council_character_ids, mode, updated_at")
     .order("updated_at", { ascending: false });
+
+  // Scoped to a single character (called from that character's own chat
+  // page) — deliberately excludes Council sessions even if this character
+  // was on the panel, since "chatting with X" means the 1:1 conversation,
+  // not a multi-agent one. Omitting characterId (the homepage's history
+  // link) lists everything, Council included.
+  if (characterId) query = query.eq("character_id", characterId);
+
+  const { data: conversations, error } = await query;
 
   if (error) throw new Error(`Failed to list conversations: ${error.message}`);
   if (!conversations || conversations.length === 0) return [];
