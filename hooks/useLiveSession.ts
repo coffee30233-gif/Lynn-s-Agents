@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { LiveAudioPlayer } from "@/lib/audio/liveAudioPlayer";
 
@@ -84,30 +84,36 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
    * instead of opening a new one per fragment, which reads like a normal
    * chat instead of a broken stream.
    *
-   * Also runs the merged text through convert() (Simplified -> Traditional)
-   * every update — the system instruction already asks for Traditional
+   * Also runs each incoming fragment through convert() (Simplified ->
+   * Traditional) — the system instruction already asks for Traditional
    * Chinese only, but (same lesson as the text-chat path) that's not
-   * reliable on its own; the Live model has been observed replying in
-   * Simplified despite it. Re-converting the whole merged bubble each time
-   * (not just the incoming fragment) avoids missing a multi-character
-   * substitution that happens to land across a fragment boundary.
+   * reliable on its own. Converts only the new fragment, not the whole
+   * accumulated bubble on every update — this used to re-run OpenCC over
+   * the entire growing bubble on every single fragment (O(n²) over a long
+   * turn), which blocked this same onmessage callback that also enqueues
+   * audio chunks for playback, and was the likely cause of the stuttering
+   * audio reported after this conversion was first added. The tradeoff is
+   * a multi-character phrase substitution could rarely land split across a
+   * fragment boundary and get missed — much better than audio glitching
+   * during a live call.
    */
   const appendTranscriptFragment = useCallback(
     (role: "user" | "coach", text: string) => {
+      const convertedFragment = convert(text);
+
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === role) {
-          const merged = convert(last.text + text);
-          return [...prev.slice(0, -1), { role, text: merged }];
+          return [...prev.slice(0, -1), { role, text: last.text + convertedFragment }];
         }
-        return [...prev, { role, text: convert(text) }];
+        return [...prev, { role, text: convertedFragment }];
       });
 
       const lastRef = transcriptRef.current[transcriptRef.current.length - 1];
       if (lastRef && lastRef.role === role) {
-        lastRef.text = convert(lastRef.text + text);
+        lastRef.text += convertedFragment;
       } else {
-        transcriptRef.current.push({ role, text: convert(text) });
+        transcriptRef.current.push({ role, text: convertedFragment });
       }
     },
     [convert]
@@ -165,6 +171,21 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
     // Deliberately not connected to audioContext.destination — we're only
     // capturing to send, not playing the user's own mic back to them.
   }, []);
+
+  /** Non-React-state teardown, shared by disconnect(), onclose, and the
+   * unmount cleanup below — the unmount case specifically must not call
+   * setState (component's already gone), so this stays state-free. */
+  const closeConnection = useCallback(() => {
+    stopMic();
+    playerRef.current?.close();
+    playerRef.current = null;
+    try {
+      sessionRef.current?.close();
+    } catch (err) {
+      console.error("[useLiveSession] error closing session:", err);
+    }
+    sessionRef.current = null;
+  }, [stopMic]);
 
   const saveTranscript = useCallback(async () => {
     if (saveTriggeredRef.current) return;
@@ -261,9 +282,7 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
             setStatus("closed");
             // Close might be Gemini hanging up rather than the user pressing
             // "end call" — clean up the mic/player and save regardless.
-            stopMic();
-            playerRef.current?.close();
-            playerRef.current = null;
+            closeConnection();
             void saveTranscript();
           },
         },
@@ -276,21 +295,52 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
       setErrorMessage(err instanceof Error ? err.message : "連線失敗");
       setStatus("error");
     }
-  }, [characterId, appendTranscriptFragment, startMic, stopMic, saveTranscript]);
+  }, [characterId, appendTranscriptFragment, startMic, closeConnection, saveTranscript]);
 
   const disconnect = useCallback(async () => {
-    stopMic();
-    playerRef.current?.close();
-    playerRef.current = null;
-    try {
-      sessionRef.current?.close();
-    } catch (err) {
-      console.error("[useLiveSession] error closing session:", err);
-    }
-    sessionRef.current = null;
+    closeConnection();
     setStatus("closed");
     await saveTranscript();
-  }, [stopMic, saveTranscript]);
+  }, [closeConnection, saveTranscript]);
+
+  /**
+   * Covers navigating away in-app without pressing "結束對話" (e.g. tapping
+   * the back arrow or a nav link while still connected) — that unmounts
+   * this component, which the explicit disconnect() button click never
+   * runs. Deliberately does not touch React state (component's gone by the
+   * time this fires); just tears down the connection and fires the save.
+   */
+  useEffect(() => {
+    return () => {
+      if (sessionRef.current || micStreamRef.current) {
+        closeConnection();
+        void saveTranscript();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Covers closing the tab, refreshing, or backgrounding the app entirely
+   * (the PWA case) — "pagehide" is the mobile-Safari-reliable equivalent of
+   * beforeunload. A regular fetch() can get cancelled mid-flight when the
+   * page is torn down, so this uses sendBeacon, which is built for exactly
+   * this "last request as the page dies" case.
+   */
+  useEffect(() => {
+    function handlePageHide() {
+      if (saveTriggeredRef.current) return;
+      const turns = transcriptRef.current;
+      if (turns.length === 0) return;
+      saveTriggeredRef.current = true;
+      const blob = new Blob([JSON.stringify({ characterId, transcript: turns })], {
+        type: "application/json",
+      });
+      navigator.sendBeacon("/api/live/save-transcript", blob);
+    }
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [characterId]);
 
   return { status, errorMessage, transcript, connect, disconnect };
 }

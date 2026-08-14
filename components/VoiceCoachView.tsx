@@ -30,8 +30,8 @@ export function VoiceCoachView({ character }: { character: CharacterProfile }) {
           {status === "error" && errorMessage && <span className="text-red-300">{errorMessage}</span>}
         </div>
 
-        <p className="text-center text-xs text-white/30">
-          💡 建議戴耳機使用——用喇叭的話，教練的聲音容易被麥克風收回去，可能會誤判成你在打斷他，講到一半突然被切斷。
+        <p className="text-center text-xs text-amber-300/80">
+          🎧 請戴耳機使用——用喇叭的話，教練的聲音幾乎一定會被麥克風收回去，導致誤判成你在打斷他、講到一半被切斷，或聲音聽起來忽快忽慢。
         </p>
 
         {transcript.length > 0 && (
