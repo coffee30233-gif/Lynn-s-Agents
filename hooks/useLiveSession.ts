@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity } from "@google/genai";
 import { LiveAudioPlayer } from "@/lib/audio/liveAudioPlayer";
 
 /**
@@ -42,6 +42,25 @@ interface UseLiveSessionResult {
   transcript: TranscriptEntry[];
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+}
+
+// Live API's transcript stream sends fragments the way it would for
+// space-separated languages — each fragment tends to carry a leading space,
+// which reads fine between English words but leaves visible gaps between
+// Chinese characters ("你 好" instead of "你好") once fragments are
+// concatenated. Only strips the leading space when it's actually sitting
+// between two CJK characters, so English spacing is untouched.
+const CJK_CHAR = /[㐀-鿿豈-﫿　-〿＀-￯]/;
+
+function joinTranscriptText(existing: string, incoming: string): string {
+  const trimmed = incoming.replace(/^\s+/, "");
+  if (trimmed === incoming) return existing + incoming;
+  const lastChar = existing.slice(-1);
+  const firstChar = trimmed.slice(0, 1);
+  if (CJK_CHAR.test(lastChar) && CJK_CHAR.test(firstChar)) {
+    return existing + trimmed;
+  }
+  return existing + incoming;
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -104,14 +123,14 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
       setTranscript((prev) => {
         const last = prev[prev.length - 1];
         if (last && last.role === role) {
-          return [...prev.slice(0, -1), { role, text: last.text + convertedFragment }];
+          return [...prev.slice(0, -1), { role, text: joinTranscriptText(last.text, convertedFragment) }];
         }
         return [...prev, { role, text: convertedFragment }];
       });
 
       const lastRef = transcriptRef.current[transcriptRef.current.length - 1];
       if (lastRef && lastRef.role === role) {
-        lastRef.text += convertedFragment;
+        lastRef.text = joinTranscriptText(lastRef.text, convertedFragment);
       } else {
         transcriptRef.current.push({ role, text: convertedFragment });
       }
@@ -243,6 +262,20 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: { voiceName: LIVE_VOICE_NAME },
+            },
+          },
+          // Gemini Live defaults to HIGH voice-activity-detection sensitivity
+          // (per the SDK's own docs — Vertex/Enterprise defaults to LOW, but
+          // Gemini Live defaults to HIGH), which is quick to misread the
+          // coach's own voice leaking back through the mic as the user
+          // interrupting. LOW makes it require a clearer signal before
+          // deciding someone's actually speaking — reduces false triggers
+          // from echo, though headphones are still the real fix (see the UI
+          // hint) since this can't fully compensate for physical echo.
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
             },
           },
         },
