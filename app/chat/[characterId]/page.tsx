@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ChatView } from "@/components/ChatView";
+import { VoiceTranscriptView } from "@/components/VoiceTranscriptView";
 import { getAllCharacters, getCharacterById } from "@/lib/characters/registry";
 import { createClient } from "@/lib/supabase/server";
 import { getConversationWithMessages } from "@/lib/conversations/queries";
@@ -30,10 +31,6 @@ export default async function ChatPage({
   const character = getCharacterById(params.characterId);
   if (!character) notFound();
 
-  if (VOICE_CHARACTER_IDS.includes(character.id)) {
-    return <VoiceCoachView character={character} />;
-  }
-
   let initialMessages: ChatMessage[] | undefined;
   let initialConversationId: string | undefined;
 
@@ -48,6 +45,16 @@ export default async function ChatPage({
       initialMessages = conversation.messages;
       initialConversationId = searchParams.conversationId;
     }
+  }
+
+  if (VOICE_CHARACTER_IDS.includes(character.id)) {
+    // A Live API session can't be "resumed" — a conversationId here means
+    // the user clicked a past session from history, so show its saved
+    // transcript read-only instead of opening a new live connection.
+    if (initialMessages) {
+      return <VoiceTranscriptView character={character} messages={initialMessages} />;
+    }
+    return <VoiceCoachView character={character} />;
   }
 
   return (

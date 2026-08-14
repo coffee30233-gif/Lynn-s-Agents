@@ -67,29 +67,51 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
   /** Accumulates this session's transcript so it can be saved on disconnect. */
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const saveTriggeredRef = useRef(false);
+  /**
+   * opencc-js's conversion dictionary is ~1MB uncompressed — loaded via
+   * dynamic import (kicked off in connect(), see below) instead of a
+   * top-level import, so it doesn't sit in this page's initial JS bundle.
+   * By the time transcripts actually start arriving, the token fetch +
+   * WebSocket handshake have already given this plenty of time to resolve.
+   */
+  const toTraditionalRef = useRef<((text: string) => string) | null>(null);
+
+  const convert = useCallback((text: string) => toTraditionalRef.current?.(text) ?? text, []);
 
   /**
    * Live API transcript messages arrive as fragments (not full sentences).
    * Merge consecutive fragments from the same speaker into one bubble
    * instead of opening a new one per fragment, which reads like a normal
    * chat instead of a broken stream.
+   *
+   * Also runs the merged text through convert() (Simplified -> Traditional)
+   * every update — the system instruction already asks for Traditional
+   * Chinese only, but (same lesson as the text-chat path) that's not
+   * reliable on its own; the Live model has been observed replying in
+   * Simplified despite it. Re-converting the whole merged bubble each time
+   * (not just the incoming fragment) avoids missing a multi-character
+   * substitution that happens to land across a fragment boundary.
    */
-  const appendTranscriptFragment = useCallback((role: "user" | "coach", text: string) => {
-    setTranscript((prev) => {
-      const last = prev[prev.length - 1];
-      if (last && last.role === role) {
-        return [...prev.slice(0, -1), { role, text: last.text + text }];
-      }
-      return [...prev, { role, text }];
-    });
+  const appendTranscriptFragment = useCallback(
+    (role: "user" | "coach", text: string) => {
+      setTranscript((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === role) {
+          const merged = convert(last.text + text);
+          return [...prev.slice(0, -1), { role, text: merged }];
+        }
+        return [...prev, { role, text: convert(text) }];
+      });
 
-    const lastRef = transcriptRef.current[transcriptRef.current.length - 1];
-    if (lastRef && lastRef.role === role) {
-      lastRef.text += text;
-    } else {
-      transcriptRef.current.push({ role, text });
-    }
-  }, []);
+      const lastRef = transcriptRef.current[transcriptRef.current.length - 1];
+      if (lastRef && lastRef.role === role) {
+        lastRef.text = convert(lastRef.text + text);
+      } else {
+        transcriptRef.current.push({ role, text: convert(text) });
+      }
+    },
+    [convert]
+  );
 
   const stopMic = useCallback(() => {
     workletNodeRef.current?.disconnect();
@@ -168,6 +190,12 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
     setTranscript([]);
     transcriptRef.current = [];
     saveTriggeredRef.current = false;
+
+    // Fire this in parallel with the token fetch below rather than
+    // awaiting it here — both take a moment, no reason to serialize them.
+    void import("@/lib/text/toTraditional").then((mod) => {
+      toTraditionalRef.current = mod.toTraditionalChinese;
+    });
 
     try {
       const tokenRes = await fetch("/api/live/token", {
