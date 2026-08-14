@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCharacterById } from "@/lib/characters/registry";
 import { createConversation, appendMessage } from "@/lib/conversations/queries";
-import { toTraditionalChinese } from "@/lib/text/toTraditional";
 
 interface TranscriptTurn {
   role: "user" | "coach";
@@ -52,13 +51,11 @@ export async function POST(req: NextRequest) {
 
   for (const turn of transcript) {
     if (!turn.text.trim()) continue;
-    // Converted here, not during the live call — see useLiveSession.ts for
-    // why the conversion was moved out of the real-time transcript path.
     await appendMessage(
       supabase,
       conversationId,
       turn.role === "user" ? "user" : "assistant",
-      toTraditionalChinese(turn.text),
+      turn.text,
       turn.role === "coach" ? character.id : undefined
     );
   }
