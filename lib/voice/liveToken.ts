@@ -11,10 +11,14 @@ import { GoogleGenAI, Modality } from "@google/genai";
  * mints a short-lived ephemeral token server-side instead — the browser only
  * ever sees this token, which expires and can only open one connection.
  *
- * Known gotcha (confirmed against a real Gemini API key): if GEMINI_API_KEY
- * is the newer format ("AQ." prefix), authTokens.create() returns
- * INVALID_ARGUMENT. Only the older format ("AIzaSy..." prefix) works with
- * this endpoint today — check the key format first if this starts failing.
+ * Note on key format: Google is migrating Gemini API keys from the legacy
+ * "AIzaSy..." format to a newer "AQ." format, and AI Studio now issues only
+ * the new format — legacy keys stop working entirely in September 2026, so
+ * the new format is the only viable long-term option regardless. Early on,
+ * authTokens.create() rejected "AQ." keys with INVALID_ARGUMENT, but Google
+ * confirmed that fixed as of May 2026. If token minting fails, check the
+ * error message and Google's AI Developer Forum rather than assuming it's
+ * still this same key-format issue.
  */
 
 const LIVE_MODEL_ID = "models/gemini-3.1-flash-live-preview";
