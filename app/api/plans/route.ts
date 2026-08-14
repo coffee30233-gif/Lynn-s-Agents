@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Source } from "@/types";
 import { createClient } from "@/lib/supabase/server";
-import { createPlan } from "@/lib/plans/queries";
+import { createPlan, getPlan } from "@/lib/plans/queries";
+import { syncPlanToGoogleCalendar } from "@/lib/plans/googleSync";
 
 export async function POST(req: NextRequest) {
   const supabaseConfigured = Boolean(
@@ -46,6 +47,9 @@ export async function POST(req: NextRequest) {
     sources: body.sources,
     sourceConversationId: body.conversationId,
   });
+
+  const plan = await getPlan(supabase, id);
+  if (plan) await syncPlanToGoogleCalendar(supabase, user.id, plan);
 
   return NextResponse.json({ id });
 }

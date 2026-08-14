@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { deletePlan } from "@/lib/plans/queries";
+import { deletePlan, getPlan } from "@/lib/plans/queries";
+import { removePlanFromGoogleCalendar } from "@/lib/plans/googleSync";
 
 export async function DELETE(req: NextRequest, { params }: { params: { planId: string } }) {
   const supabaseConfigured = Boolean(
@@ -17,6 +18,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { planId: s
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const plan = await getPlan(supabase, params.planId);
+  if (plan) await removePlanFromGoogleCalendar(supabase, user.id, plan);
 
   await deletePlan(supabase, params.planId);
   return NextResponse.json({ ok: true });
