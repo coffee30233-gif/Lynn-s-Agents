@@ -74,15 +74,20 @@ export function suggestPlanLocation(content: string): string {
 }
 
 /**
- * Pulls an "M月D日" out of the 📋 活動概覽 block's "時間：" line and turns it
- * into a YYYY-MM-DD string for the <input type="date"> field. No year in the
- * source text, so — same assumption as verifyDates.ts — it's taken to mean
- * the nearest occurrence on/after `referenceDate`, rolling into next year if
- * that month/day has already passed this year.
+ * Pulls a date out of the 📋 活動概覽 block's "時間：" line and turns it into a
+ * YYYY-MM-DD string for the <input type="date"> field. Accepts both "M月D日"
+ * and "M/D" — the AI doesn't consistently pick one, and slash notation
+ * (e.g. "8/16（星期日）", "本週六 8/16") turned out to be common enough in
+ * practice that only matching "M月D日" left the date field blank most of the
+ * time. No year in the source text, so — same assumption as verifyDates.ts —
+ * it's taken to mean the nearest occurrence on/after `referenceDate`, rolling
+ * into next year if that month/day has already passed this year.
  */
 export function suggestPlanDate(content: string, referenceDate: Date = new Date()): string {
   const timeLine = content.match(/時間\s*[:：]\s*(.+)/)?.[1] ?? content;
-  const dateMatch = timeLine.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  const dateMatch =
+    timeLine.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/) ??
+    timeLine.match(/(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/);
   if (!dateMatch) return "";
 
   const month = parseInt(dateMatch[1], 10);
