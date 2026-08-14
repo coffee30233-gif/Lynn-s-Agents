@@ -17,9 +17,10 @@ export function LogoutButton() {
     <button
       type="button"
       onClick={handleLogout}
-      className="text-xs font-medium text-white/40 transition-colors hover:text-white/80"
+      className="whitespace-nowrap text-xs font-medium text-white/40 transition-colors hover:text-white/80"
     >
-      登出 · Log out
+      <span className="sm:hidden">登出</span>
+      <span className="hidden sm:inline">登出 · Log out</span>
     </button>
   );
 }

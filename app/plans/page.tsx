@@ -14,7 +14,7 @@ export default async function PlansPage({
 
   if (!supabaseConfigured) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-ink-950 px-6">
+      <main className="safe-top flex min-h-dvh items-center justify-center bg-ink-950 px-6">
         <p className="text-sm text-white/40">
           Supabase 尚未設定，行程功能無法使用。 · Supabase isn&rsquo;t configured yet.
         </p>
@@ -30,7 +30,7 @@ export default async function PlansPage({
   const calendarConnected = user ? await hasGoogleCalendarConnected(supabase, user.id) : false;
 
   return (
-    <main className="min-h-dvh bg-ink-950">
+    <main className="safe-top min-h-dvh bg-ink-950">
       <div className="mx-auto max-w-2xl px-6 py-8 sm:py-16">
         <div className="mb-10 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">我的行程 · Plans</h1>

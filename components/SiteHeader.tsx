@@ -15,13 +15,15 @@ export async function SiteHeader() {
   if (!user) return null;
 
   return (
-    <div className="flex items-center justify-end gap-4 text-sm">
-      <span className="text-white/40">{user.email}</span>
-      <Link href="/plans" className="text-white/60 transition-colors hover:text-white">
-        我的行程 · Plans
+    <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm">
+      <span className="hidden truncate text-white/40 sm:inline">{user.email}</span>
+      <Link href="/plans" className="whitespace-nowrap text-white/60 transition-colors hover:text-white">
+        <span className="sm:hidden">我的行程</span>
+        <span className="hidden sm:inline">我的行程 · Plans</span>
       </Link>
-      <Link href="/history" className="text-white/60 transition-colors hover:text-white">
-        歷史紀錄 · History
+      <Link href="/history" className="whitespace-nowrap text-white/60 transition-colors hover:text-white">
+        <span className="sm:hidden">歷史紀錄</span>
+        <span className="hidden sm:inline">歷史紀錄 · History</span>
       </Link>
       <LogoutButton />
     </div>

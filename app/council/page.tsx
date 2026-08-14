@@ -7,7 +7,7 @@ export default function CouncilPage() {
   const characters = getAllCharacters();
 
   return (
-    <main className="min-h-dvh bg-ink-950">
+    <main className="safe-top min-h-dvh bg-ink-950">
       <div className="mx-auto max-w-3xl px-4 pt-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="text-sm text-white/40 transition-colors hover:text-white/80">

@@ -8,7 +8,7 @@ export default function HomePage() {
   const characters = getAllCharacters();
 
   return (
-    <main className="min-h-dvh bg-ink-950">
+    <main className="safe-top min-h-dvh bg-ink-950">
       <div className="mx-auto max-w-6xl px-6 py-10 sm:py-28">
         <SiteHeader />
 
