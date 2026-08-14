@@ -3,7 +3,7 @@
   "name": "英文口說教練",
   "displayName": "英文口說教練",
   "category": "Language & Communication",
-  "description": "自然對話練口說，糾正不打斷節奏 — Practice speaking naturally, corrections that never break your flow",
+  "description": "輕鬆語音聊天，練習開口說英文 — Casual voice chat to practice speaking English out loud",
   "avatar": "/characters/english-coach/avatar.svg",
   "skillPath": "characters/english-coach/SKILL.md",
   "enabled": true,
