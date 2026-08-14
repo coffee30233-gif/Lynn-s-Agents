@@ -1,0 +1,14 @@
+{
+  "id": "relationship-advisor",
+  "name": "人際關係顧問",
+  "displayName": "人際關係顧問",
+  "category": "Relationships & Communication",
+  "description": "愛情、家庭、職場、朋友——把卡住的關係談清楚 — Untangle relationships, from love to family to work",
+  "avatar": "/characters/relationship-advisor/avatar.svg",
+  "skillPath": "characters/relationship-advisor/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "think"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": true }
+}
