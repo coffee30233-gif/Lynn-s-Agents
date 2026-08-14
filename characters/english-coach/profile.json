@@ -1,0 +1,14 @@
+{
+  "id": "english-coach",
+  "name": "英文口說教練",
+  "displayName": "英文口說教練",
+  "category": "Language & Communication",
+  "description": "自然對話練口說，糾正不打斷節奏 — Practice speaking naturally, corrections that never break your flow",
+  "avatar": "/characters/english-coach/avatar.svg",
+  "skillPath": "characters/english-coach/SKILL.md",
+  "enabled": true,
+  "modes": ["chat", "learn"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": true }
+}
