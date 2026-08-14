@@ -7,7 +7,13 @@ function parseSources(value: unknown): Source[] {
   );
 }
 
-const TIMEOUT_MS = 20000;
+// Both API routes give the serverless function a 60s budget (maxDuration),
+// but this used to abort at 20s regardless — well short of how long Gemini
+// + Google Search grounding can legitimately take, so slow-but-healthy
+// replies were reported as "send failed" and only worked on a lucky retry.
+// 55s leaves ~5s of the 60s budget for the rest of the route handler
+// (Supabase writes, JSON parsing) after this call returns.
+const DEFAULT_TIMEOUT_MS = 55000;
 
 export class N8nError extends Error {
   status: number;
@@ -28,6 +34,7 @@ interface CallN8nChatParams {
   messages: ConversationTurn[];
   conversationId?: string;
   mode: AgentMode;
+  timeoutMs?: number;
 }
 
 /**
@@ -43,7 +50,7 @@ export async function callN8nChat(params: CallN8nChatParams): Promise<ChatRespon
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
   let res: Response;
   try {

@@ -31,7 +31,8 @@ export async function getCharacterReply(
   systemPrompt: string,
   messages: ConversationTurn[],
   conversationId: string | undefined,
-  mode: AgentMode
+  mode: AgentMode,
+  timeoutMs?: number
 ): Promise<ReplyResult> {
   if (!process.env.N8N_WEBHOOK_URL) {
     await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500));
@@ -40,7 +41,7 @@ export async function getCharacterReply(
   }
 
   try {
-    const response = await callN8nChat({ characterId, systemPrompt, messages, conversationId, mode });
+    const response = await callN8nChat({ characterId, systemPrompt, messages, conversationId, mode, timeoutMs });
     return { ok: true, message: toTraditionalChinese(response.message), sources: response.sources ?? [] };
   } catch (err) {
     if (err instanceof N8nError) return { ok: false, error: err.message, status: err.status };

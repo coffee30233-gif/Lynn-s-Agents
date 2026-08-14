@@ -65,12 +65,17 @@ export async function POST(req: NextRequest) {
     panel.map(async (character) => {
       const skill = loadSkill(character);
       const systemPrompt = buildSystemPrompt(character, skill, MODE, character.memory.enabled ? memories : []);
+      // Unlike /api/chat, this call isn't the only thing in the 60s budget —
+      // synthesis still runs after every panelist returns — so it gets a
+      // smaller slice (30s) rather than the client's 55s default, leaving
+      // room for synthesis's own call below.
       const result = await getCharacterReply(
         character.id,
         systemPrompt,
         [{ role: "user", content: message }],
         conversationId,
-        MODE
+        MODE,
+        30000
       );
       return { character, result };
     })
@@ -96,13 +101,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Runs after the panel stage above, in the same 60s budget — 25s here
+  // plus the panel's 30s leaves ~5s for the rest of the route handler.
   const synthesisPrompt = buildSynthesisPrompt(message, responses);
   const synthesisResult = await getCharacterReply(
     "synthesis",
     synthesisPrompt,
     [{ role: "user", content: "Please give your synthesis now." }],
     conversationId,
-    MODE
+    MODE,
+    25000
   );
 
   if (!synthesisResult.ok) {
