@@ -8,6 +8,8 @@ import type { ConversationTurn } from "@/lib/n8n/client";
 import { createClient } from "@/lib/supabase/server";
 import { appendMessage, createConversation, getConversationWithMessages } from "@/lib/conversations/queries";
 import { getUserMemories } from "@/lib/memory/queries";
+import { parseExpenses } from "@/lib/text/parseExpense";
+import { writeExpenseToPassbook } from "@/lib/passbook/client";
 
 // Vercel's default serverless timeout (10s on Hobby) is too short once
 // multi-turn history + Google Search grounding make Gemini calls slower.
@@ -91,11 +93,26 @@ export async function POST(req: NextRequest) {
     await appendMessage(supabase, conversationId, "assistant", result.message, character.id, result.sources);
   }
 
+  // Only this character emits 💰 記帳 blocks — writes each one to the
+  // user's separate passbook app. Best-effort: a failed write here doesn't
+  // fail the chat response, since the reply already exists either way.
+  let expenseSync: ChatResponseBody["expenseSync"];
+  if (character.id === "expense-tracker") {
+    const expenses = parseExpenses(result.message);
+    if (expenses.length > 0) {
+      const outcomes = await Promise.all(expenses.map((e) => writeExpenseToPassbook(e)));
+      const failed = outcomes.filter((o) => !o.ok);
+      failed.forEach((o) => console.error("[expense-tracker] passbook write failed:", o.error));
+      expenseSync = { saved: outcomes.length - failed.length, failed: failed.length };
+    }
+  }
+
   const response: ChatResponseBody = {
     characterId: character.id,
     message: result.message,
     conversationId: conversationId ?? crypto.randomUUID(),
     sources: result.sources,
+    expenseSync,
   };
   return NextResponse.json(response);
 }

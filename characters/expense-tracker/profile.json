@@ -1,0 +1,14 @@
+{
+  "id": "expense-tracker",
+  "name": "管帳助理",
+  "displayName": "管帳助理",
+  "category": "Finance & Productivity",
+  "description": "說一句花費，直接記進你的存摺 App — Say what you spent, it lands straight in your passbook app",
+  "avatar": "/characters/expense-tracker/avatar.svg",
+  "skillPath": "characters/expense-tracker/SKILL.md",
+  "enabled": true,
+  "modes": ["chat"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": true }
+}

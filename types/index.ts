@@ -30,12 +30,22 @@ export interface Source {
   uri: string;
 }
 
+/** Result of trying to write parsed 💰 記帳 blocks to the passbook app —
+ * only ever set on a message right after it's sent (see ChatView.tsx),
+ * never persisted or reloaded from history; it's a one-time confirmation,
+ * not a durable property of the message. */
+export interface ExpenseSyncResult {
+  saved: number;
+  failed: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: number;
   sources?: Source[];
+  expenseSync?: ExpenseSyncResult;
 }
 
 export interface ChatRequestBody {
@@ -50,6 +60,7 @@ export interface ChatResponseBody {
   message: string;
   conversationId: string;
   sources?: Source[];
+  expenseSync?: ExpenseSyncResult;
 }
 
 export interface ChatErrorBody {

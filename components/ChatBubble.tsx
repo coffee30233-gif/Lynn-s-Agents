@@ -4,6 +4,7 @@ import { SourceLinks } from "./SourceLinks";
 import { SavePlanButton } from "./SavePlanButton";
 import { stripMarkdown } from "@/lib/text/stripMarkdown";
 import { findDateInconsistencies } from "@/lib/text/verifyDates";
+import { stripExpenseBlocks } from "@/lib/text/parseExpense";
 
 export function ChatBubble({
   message,
@@ -15,7 +16,9 @@ export function ChatBubble({
   conversationId?: string;
 }) {
   const isUser = message.role === "user";
-  const content = isUser ? message.content : stripMarkdown(message.content);
+  const rawContent = isUser ? message.content : stripMarkdown(message.content);
+  const content =
+    !isUser && character.id === "expense-tracker" ? stripExpenseBlocks(rawContent) : rawContent;
 
   // Prompting the model not to fabricate time-sensitive info (weather, road
   // closures, transit changes) turned out not to be reliable — it kept
@@ -69,6 +72,16 @@ export function ChatBubble({
             <SourceLinks sources={message.sources} />
             {character.id === "event-planner" && (
               <SavePlanButton content={content} sources={message.sources} conversationId={conversationId} />
+            )}
+            {message.expenseSync && message.expenseSync.saved > 0 && (
+              <p className="mt-1.5 text-xs text-emerald-300/80">
+                ✓ 已記入管帳 App（{message.expenseSync.saved} 筆）
+              </p>
+            )}
+            {message.expenseSync && message.expenseSync.failed > 0 && (
+              <p className="mt-1.5 text-xs text-red-300/90">
+                ⚠️ {message.expenseSync.failed} 筆記帳同步失敗，請確認管帳 App 是否正常
+              </p>
             )}
           </>
         )}
