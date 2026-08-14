@@ -1,7 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback"];
+// The PWA manifest must be reachable without a session — Safari fetches it
+// (unauthenticated, no cookies attached) to decide whether "加入主畫面" is
+// even offered, so gating it behind login silently breaks that entirely.
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/site.webmanifest"];
 
 export async function middleware(request: NextRequest) {
   // Local dev convenience: if Supabase isn't configured yet, don't lock the
