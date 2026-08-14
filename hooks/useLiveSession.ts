@@ -86,16 +86,6 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
   /** Accumulates this session's transcript so it can be saved on disconnect. */
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const saveTriggeredRef = useRef(false);
-  /**
-   * opencc-js's conversion dictionary is ~1MB uncompressed — loaded via
-   * dynamic import (kicked off in connect(), see below) instead of a
-   * top-level import, so it doesn't sit in this page's initial JS bundle.
-   * By the time transcripts actually start arriving, the token fetch +
-   * WebSocket handshake have already given this plenty of time to resolve.
-   */
-  const toTraditionalRef = useRef<((text: string) => string) | null>(null);
-
-  const convert = useCallback((text: string) => toTraditionalRef.current?.(text) ?? text, []);
 
   /**
    * Live API transcript messages arrive as fragments (not full sentences).
@@ -103,40 +93,34 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
    * instead of opening a new one per fragment, which reads like a normal
    * chat instead of a broken stream.
    *
-   * Also runs each incoming fragment through convert() (Simplified ->
-   * Traditional) — the system instruction already asks for Traditional
-   * Chinese only, but (same lesson as the text-chat path) that's not
-   * reliable on its own. Converts only the new fragment, not the whole
-   * accumulated bubble on every update — this used to re-run OpenCC over
-   * the entire growing bubble on every single fragment (O(n²) over a long
-   * turn), which blocked this same onmessage callback that also enqueues
-   * audio chunks for playback, and was the likely cause of the stuttering
-   * audio reported after this conversion was first added. The tradeoff is
-   * a multi-character phrase substitution could rarely land split across a
-   * fragment boundary and get missed — much better than audio glitching
-   * during a live call.
+   * Deliberately does NOT run Simplified->Traditional conversion here.
+   * That used to live in this function — even reduced to per-fragment
+   * (not per-whole-bubble) conversion, it was still a synchronous OpenCC
+   * call inside the same onmessage callback that schedules audio chunk
+   * playback, and real-device testing traced the reported stutter/echo
+   * regression directly to this function once it was added. Live captions
+   * during the call may occasionally show Simplified as a result; the
+   * saved transcript is converted server-side instead (see
+   * app/api/live/save-transcript/route.ts), where it can't affect the live
+   * call at all. Audio reliability during an active call matters more than
+   * the live caption's script.
    */
-  const appendTranscriptFragment = useCallback(
-    (role: "user" | "coach", text: string) => {
-      const convertedFragment = convert(text);
-
-      setTranscript((prev) => {
-        const last = prev[prev.length - 1];
-        if (last && last.role === role) {
-          return [...prev.slice(0, -1), { role, text: joinTranscriptText(last.text, convertedFragment) }];
-        }
-        return [...prev, { role, text: convertedFragment }];
-      });
-
-      const lastRef = transcriptRef.current[transcriptRef.current.length - 1];
-      if (lastRef && lastRef.role === role) {
-        lastRef.text = joinTranscriptText(lastRef.text, convertedFragment);
-      } else {
-        transcriptRef.current.push({ role, text: convertedFragment });
+  const appendTranscriptFragment = useCallback((role: "user" | "coach", text: string) => {
+    setTranscript((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.role === role) {
+        return [...prev.slice(0, -1), { role, text: joinTranscriptText(last.text, text) }];
       }
-    },
-    [convert]
-  );
+      return [...prev, { role, text }];
+    });
+
+    const lastRef = transcriptRef.current[transcriptRef.current.length - 1];
+    if (lastRef && lastRef.role === role) {
+      lastRef.text = joinTranscriptText(lastRef.text, text);
+    } else {
+      transcriptRef.current.push({ role, text });
+    }
+  }, []);
 
   const stopMic = useCallback(() => {
     workletNodeRef.current?.disconnect();
@@ -230,12 +214,6 @@ export function useLiveSession(characterId: string): UseLiveSessionResult {
     setTranscript([]);
     transcriptRef.current = [];
     saveTriggeredRef.current = false;
-
-    // Fire this in parallel with the token fetch below rather than
-    // awaiting it here — both take a moment, no reason to serialize them.
-    void import("@/lib/text/toTraditional").then((mod) => {
-      toTraditionalRef.current = mod.toTraditionalChinese;
-    });
 
     try {
       const tokenRes = await fetch("/api/live/token", {
