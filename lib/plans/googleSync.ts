@@ -24,7 +24,7 @@ export async function syncPlanToGoogleCalendar(
   if (!refreshToken) return;
 
   try {
-    const eventId = await upsertCalendarEvent(refreshToken, plan.googleEventId, {
+    const eventId = await upsertCalendarEvent(refreshToken, plan.googleEventId, plan.id, {
       title: plan.title,
       location: plan.location,
       date: plan.eventDate,
@@ -58,7 +58,7 @@ export async function syncAllPlansToGoogleCalendar(
   await Promise.all(
     unsynced.map(async (plan) => {
       try {
-        const eventId = await upsertCalendarEvent(refreshToken, plan.googleEventId, {
+        const eventId = await upsertCalendarEvent(refreshToken, plan.googleEventId, plan.id, {
           title: plan.title,
           location: plan.location,
           date: plan.eventDate as string,

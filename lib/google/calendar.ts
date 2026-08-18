@@ -74,20 +74,39 @@ export interface CalendarEventInput {
   description?: string;
 }
 
+// Google Calendar custom event IDs must match ^[a-v0-9]{5,1024}$ (lowercase
+// base32hex). A plan's Supabase id is a UUID — its hex digits (0-9a-f)
+// already fall inside a-v once the hyphens are stripped, so this doubles as
+// a deterministic idempotency key: two sync attempts for the same plan can
+// never create two different events, since they'd both compute the same id.
+function planEventId(planId: string): string {
+  return planId.replace(/-/g, "");
+}
+
 /**
  * Creates the plan's event on first sync, or patches the same event on
  * every later sync (existingEventId comes from plans.google_event_id) so
- * re-clicking "加入 Google 行事曆" after editing a plan updates it in place
- * instead of creating a duplicate.
+ * re-syncing after editing a plan updates it in place instead of creating
+ * a duplicate.
+ *
+ * The create path used to let Google generate a random event id, which had
+ * no protection against being called twice for the same plan (e.g. the
+ * create-on-save sync and the page-load backfill sync racing, or a create
+ * succeeding on Google's side right before the DB write that records
+ * google_event_id failed) — each call just made a brand new event. Passing
+ * a deterministic id on create closes that: a duplicate create attempt gets
+ * a 409 from Google instead of a second event, which is handled below by
+ * switching to PATCH against that same id.
  */
 export async function upsertCalendarEvent(
   refreshToken: string,
   existingEventId: string | null,
+  planId: string,
   input: CalendarEventInput
 ): Promise<string> {
   const accessToken = await getAccessToken(refreshToken);
 
-  const body = {
+  const body: Record<string, unknown> = {
     summary: input.title,
     location: input.location || undefined,
     description: input.description || undefined,
@@ -95,12 +114,24 @@ export async function upsertCalendarEvent(
     end: { date: nextDay(input.date) },
   };
 
+  const deterministicId = planEventId(planId);
+  if (!existingEventId) body.id = deterministicId;
+
   const url = existingEventId ? `${EVENTS_URL}/${existingEventId}` : EVENTS_URL;
   const res = await fetch(url, {
     method: existingEventId ? "PATCH" : "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(body),
   });
+
+  if (res.status === 409 && !existingEventId) {
+    // Lost a race with another sync attempt for this same plan — the event
+    // already exists under our deterministic id. Not an error: switch to
+    // updating it so this call's data still lands, and the caller still
+    // gets an id back to persist either way.
+    return upsertCalendarEvent(refreshToken, deterministicId, planId, input);
+  }
+
   if (!res.ok) {
     throw new Error(`Google Calendar event ${existingEventId ? "update" : "create"} failed: ${res.status} ${await res.text()}`);
   }
