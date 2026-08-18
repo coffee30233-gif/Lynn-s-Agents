@@ -75,19 +75,41 @@ export function suggestPlanLocation(content: string): string {
 
 /**
  * Pulls a date out of the 📋 活動概覽 block's "時間：" line and turns it into a
- * YYYY-MM-DD string for the <input type="date"> field. Accepts both "M月D日"
- * and "M/D" — the AI doesn't consistently pick one, and slash notation
- * (e.g. "8/16（星期日）", "本週六 8/16") turned out to be common enough in
- * practice that only matching "M月D日" left the date field blank most of the
- * time. No year in the source text, so — same assumption as verifyDates.ts —
- * it's taken to mean the nearest occurrence on/after `referenceDate`, rolling
- * into next year if that month/day has already passed this year.
+ * YYYY-MM-DD string for the <input type="date"> field. Accepts "YYYY/M/D",
+ * "YYYY年M月D日", "M月D日", and "M/D" — the AI doesn't consistently pick one,
+ * and slash notation (e.g. "8/16（星期日）", "本週六 8/16") turned out to be
+ * common enough in practice that only matching "M月D日" left the date field
+ * blank most of the time.
+ *
+ * The year-bearing patterns are checked first and use the year straight from
+ * the text. This isn't just for completeness — without a lookbehind guard, a
+ * plain "M/D" pattern matched against e.g. "2026/08/23" would find "26/08" in
+ * the tail of the year and misread it as month=26 (which then fails the
+ * range check below and silently returns ""), so a full year needs its own
+ * branch rather than falling through to the year-less matcher.
+ *
+ * For the year-less "M月D日"/"M/D" forms there's no year in the source text,
+ * so — same assumption as verifyDates.ts — it's taken to mean the nearest
+ * occurrence on/after `referenceDate`, rolling into next year if that
+ * month/day has already passed this year.
  */
 export function suggestPlanDate(content: string, referenceDate: Date = new Date()): string {
   const timeLine = content.match(/時間\s*[:：]\s*(.+)/)?.[1] ?? content;
+
+  const fullDateMatch =
+    timeLine.match(/(\d{4})\s*[/-]\s*(\d{1,2})\s*[/-]\s*(\d{1,2})(?!\d)/) ??
+    timeLine.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (fullDateMatch) {
+    const year = parseInt(fullDateMatch[1], 10);
+    const month = parseInt(fullDateMatch[2], 10);
+    const day = parseInt(fullDateMatch[3], 10);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
   const dateMatch =
     timeLine.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/) ??
-    timeLine.match(/(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/);
+    timeLine.match(/(?<!\d)(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/);
   if (!dateMatch) return "";
 
   const month = parseInt(dateMatch[1], 10);
