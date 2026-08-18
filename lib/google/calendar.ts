@@ -102,7 +102,10 @@ export async function upsertCalendarEvent(
   refreshToken: string,
   existingEventId: string | null,
   planId: string,
-  input: CalendarEventInput
+  input: CalendarEventInput,
+  /** Internal — caps the self-healing fallbacks below to one retry each,
+   * so a pathological back-and-forth can't recurse forever. */
+  _retried = false
 ): Promise<string> {
   const accessToken = await getAccessToken(refreshToken);
 
@@ -124,12 +127,23 @@ export async function upsertCalendarEvent(
     body: JSON.stringify(body),
   });
 
-  if (res.status === 409 && !existingEventId) {
+  if (!_retried && res.status === 409 && !existingEventId) {
     // Lost a race with another sync attempt for this same plan — the event
     // already exists under our deterministic id. Not an error: switch to
     // updating it so this call's data still lands, and the caller still
     // gets an id back to persist either way.
-    return upsertCalendarEvent(refreshToken, deterministicId, planId, input);
+    return upsertCalendarEvent(refreshToken, deterministicId, planId, input, true);
+  }
+
+  if (!_retried && res.status === 404 && existingEventId) {
+    // The stored google_event_id doesn't exist on Google's side anymore —
+    // most likely deleted by hand (e.g. while cleaning up a duplicate, or
+    // just tidying the calendar). Without this, the plan would be silently
+    // desynced forever: every future edit keeps trying to PATCH an event
+    // that's gone and keeps failing quietly. Recreate it instead, so
+    // editing a plan always results in a live, correct calendar entry
+    // regardless of what happened to the old one.
+    return upsertCalendarEvent(refreshToken, null, planId, input, true);
   }
 
   if (!res.ok) {
