@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
 
   let messages: ConversationTurn[] = [{ role: "user", content: message }];
   let memories: string[] = [];
+  let userEmail: string | null = null;
 
   if (supabase) {
     const {
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    userEmail = user.email ?? null;
 
     if (!conversationId) {
       conversationId = await createConversation(supabase, user.id, { characterId: character.id, mode });
@@ -96,8 +98,17 @@ export async function POST(req: NextRequest) {
   // Only this character emits 💰 記帳 blocks — writes each one to the
   // user's separate passbook app. Best-effort: a failed write here doesn't
   // fail the chat response, since the reply already exists either way.
+  //
+  // Gated to OWNER_EMAIL specifically: the passbook write uses one shared
+  // secret with no per-user scoping on my-passbook-app's side (it's a
+  // single-user app with no account system), so without this check ANY
+  // account that can log into Lynn's Agents — and by default anyone can
+  // self-register via magic link or Google sign-in — would be writing into
+  // the site owner's real financial data. Silently skips the write for
+  // everyone else rather than surfacing an error, since a non-owner
+  // shouldn't be able to tell this integration exists at all.
   let expenseSync: ChatResponseBody["expenseSync"];
-  if (character.id === "expense-tracker") {
+  if (character.id === "expense-tracker" && userEmail && userEmail === process.env.OWNER_EMAIL) {
     const expenses = parseExpenses(result.message);
     if (expenses.length > 0) {
       const outcomes = await Promise.all(expenses.map((e) => writeExpenseToPassbook(e)));
