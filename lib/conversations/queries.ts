@@ -53,20 +53,49 @@ export async function appendMessage(
   characterId?: string,
   sources?: Source[]
 ): Promise<void> {
-  const { error: insertError } = await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    role,
-    content,
-    character_id: characterId ?? null,
-    sources: sources && sources.length > 0 ? sources : null,
-  });
+  // Independent writes (different tables, neither reads the other's result) —
+  // running them together instead of one-after-another halves this
+  // function's contribution to the request's DB round-trip time.
+  const [{ error: insertError }, { error: touchError }] = await Promise.all([
+    supabase.from("messages").insert({
+      conversation_id: conversationId,
+      role,
+      content,
+      character_id: characterId ?? null,
+      sources: sources && sources.length > 0 ? sources : null,
+    }),
+    supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId),
+  ]);
   if (insertError) throw new Error(`Failed to save message: ${insertError.message}`);
-
-  const { error: touchError } = await supabase
-    .from("conversations")
-    .update({ updated_at: new Date().toISOString() })
-    .eq("id", conversationId);
   if (touchError) throw new Error(`Failed to touch conversation: ${touchError.message}`);
+}
+
+/**
+ * Just the message rows, oldest first — used by /api/chat to reconstruct
+ * history for the *previous* turns only (the new user turn is appended in
+ * memory instead of being written then immediately read back). Lighter than
+ * getConversationWithMessages since it skips the conversations-table lookup
+ * that callers reconstructing history for the next Gemini call don't need.
+ */
+export async function getMessagesForConversation(
+  supabase: SupabaseClient,
+  conversationId: string
+): Promise<ChatMessage[]> {
+  const { data: rows, error } = await supabase
+    .from("messages")
+    .select("id, role, content, sources, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to load messages: ${error.message}`);
+
+  return (rows ?? []).map((row) => ({
+    id: row.id,
+    role: row.role,
+    content: row.content,
+    createdAt: new Date(row.created_at).getTime(),
+    sources: row.sources ?? undefined,
+  }));
 }
 
 export async function getConversationWithMessages(

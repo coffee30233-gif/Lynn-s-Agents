@@ -6,7 +6,7 @@ import { buildSystemPrompt } from "@/lib/agent/promptBuilder";
 import { getCharacterReply } from "@/lib/agent/reply";
 import type { ConversationTurn } from "@/lib/n8n/client";
 import { createClient } from "@/lib/supabase/server";
-import { appendMessage, createConversation, getConversationWithMessages } from "@/lib/conversations/queries";
+import { appendMessage, createConversation, getMessagesForConversation } from "@/lib/conversations/queries";
 import { getUserMemories } from "@/lib/memory/queries";
 import { parseExpenses } from "@/lib/text/parseExpense";
 import { writeExpenseToPassbook } from "@/lib/passbook/client";
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
   let messages: ConversationTurn[] = [{ role: "user", content: message }];
   let memories: string[] = [];
   let userEmail: string | null = null;
+  let pendingUserAppend: Promise<void> | null = null;
 
   if (supabase) {
     const {
@@ -67,25 +68,43 @@ export async function POST(req: NextRequest) {
     }
     userEmail = user.email ?? null;
 
-    if (!conversationId) {
-      conversationId = await createConversation(supabase, user.id, { characterId: character.id, mode });
-    }
-    await appendMessage(supabase, conversationId, "user", message);
+    const isNewConversation = !conversationId;
+    const convId: string = isNewConversation
+      ? await createConversation(supabase, user.id, { characterId: character.id, mode })
+      : conversationId!;
+    conversationId = convId;
 
-    // Fetch back what we just wrote so `messages` includes this turn as the
-    // last entry, in the same read path used to resume a saved conversation.
-    const conversation = await getConversationWithMessages(supabase, conversationId);
-    if (conversation) {
-      messages = conversation.messages.map((m) => ({ role: m.role, content: m.content }));
-    }
+    // Reading this conversation's earlier turns and reading memories (a
+    // different query, and one that structurally excludes convId via .neq)
+    // don't race with each other, so they run together. Appending the new
+    // user turn is a write to the exact rows the history read just read —
+    // it has to happen after that read resolves, not concurrently with it,
+    // or the read could occasionally catch its own write mid-flight and
+    // double up this turn in what gets sent to Gemini.
+    const [priorMessages, userMemories] = await Promise.all([
+      isNewConversation ? Promise.resolve([]) : getMessagesForConversation(supabase, convId),
+      character.memory.enabled ? getUserMemories(supabase, { excludeConversationId: convId }) : Promise.resolve([]),
+    ]);
+    messages = [...priorMessages.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: message }];
+    memories = userMemories;
 
-    if (character.memory.enabled) {
-      memories = await getUserMemories(supabase, { excludeConversationId: conversationId });
-    }
+    // Not awaited here on purpose: nothing downstream needs this write to
+    // have landed before calling Gemini (messages/memories are already in
+    // hand above), so let it finish in the background while the slow model
+    // call runs instead of sitting on the critical path. Still awaited
+    // before the response goes out (below) so the request doesn't return
+    // — and the serverless function doesn't get frozen — with it unfinished.
+    pendingUserAppend = appendMessage(supabase, convId, "user", message);
   }
 
   const systemPrompt = buildSystemPrompt(character, skill, mode, memories);
   const result = await getCharacterReply(character.id, systemPrompt, messages, conversationId, mode);
+
+  // Flush the backgrounded user-message write before any return path below —
+  // otherwise an early return (e.g. the error branch right after this) could
+  // let the serverless function finish while it's still in flight, and it
+  // never gets to run at all.
+  if (pendingUserAppend) await pendingUserAppend;
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
