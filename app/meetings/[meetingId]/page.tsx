@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMeeting } from "@/lib/meetings/queries";
 import { MeetingStatusPoller } from "@/components/MeetingStatusPoller";
 import { DeleteMeetingButton } from "@/components/DeleteMeetingButton";
+import { formatTaiwanDateTime } from "@/lib/date/format";
 
 export default async function MeetingDetailPage({ params }: { params: { meetingId: string } }) {
   const supabaseConfigured = Boolean(
@@ -26,7 +27,7 @@ export default async function MeetingDetailPage({ params }: { params: { meetingI
         </div>
 
         <h1 className="text-2xl font-bold text-white">{meeting.title}</h1>
-        <p className="mt-1 text-xs text-white/30">{new Date(meeting.createdAt).toLocaleString("zh-Hant-TW")}</p>
+        <p className="mt-1 text-xs text-white/30">{formatTaiwanDateTime(meeting.createdAt)}</p>
 
         <div className="mt-6">
           <MeetingStatusPoller initialMeeting={meeting} />

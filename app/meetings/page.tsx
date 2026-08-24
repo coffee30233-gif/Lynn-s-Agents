@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listMeetingsForUser } from "@/lib/meetings/queries";
 import { UploadMeetingForm } from "@/components/UploadMeetingForm";
+import { formatTaiwanDateTime } from "@/lib/date/format";
 
 const STATUS_LABEL: Record<string, string> = {
   uploaded: "等待處理",
@@ -60,7 +61,7 @@ export default async function MeetingsPage() {
               <div>
                 <p className="text-sm font-medium text-white">{meeting.title}</p>
                 <p className="mt-1 text-xs text-white/30">
-                  {new Date(meeting.createdAt).toLocaleString("zh-Hant-TW")}
+                  {formatTaiwanDateTime(meeting.createdAt)}
                 </p>
               </div>
               <span className="text-xs text-white/50">{STATUS_LABEL[meeting.status] ?? meeting.status}</span>
