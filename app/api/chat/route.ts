@@ -4,7 +4,7 @@ import { getCharacterById } from "@/lib/characters/registry";
 import { loadSkill } from "@/lib/characters/loader";
 import { buildSystemPrompt } from "@/lib/agent/promptBuilder";
 import { getCharacterReply } from "@/lib/agent/reply";
-import type { ConversationTurn } from "@/lib/n8n/client";
+import type { ConversationTurn } from "@/lib/agent/gemini";
 import { createClient } from "@/lib/supabase/server";
 import { appendMessage, createConversation, getMessagesForConversation } from "@/lib/conversations/queries";
 import { getUserMemories } from "@/lib/memory/queries";
@@ -45,9 +45,10 @@ export async function POST(req: NextRequest) {
 
   const skill = loadSkill(character);
 
-  // Same local-dev-convenience pattern as N8N_WEBHOOK_URL: without Supabase
-  // configured, chat still works, it just isn't persisted anywhere — and
-  // without persistence there's no history to reconstruct or memory to draw
+  // Same local-dev-convenience pattern as GEMINI_API_KEY (see getCharacterReply's
+  // mock fallback): without Supabase configured, chat still works, it just
+  // isn't persisted anywhere — and without persistence there's no history to
+  // reconstruct or memory to draw
   // on, so each call is a single-turn exchange like before.
   const supabaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

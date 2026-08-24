@@ -1,7 +1,14 @@
-# n8n Workflow — Lynn's Agents Chat
+# n8n Workflow — Lynn's Agents Chat (retired)
 
-This is what `app/api/chat/route.ts` calls in Phase 2. Build this manually in your n8n
-instance; the code side (`lib/n8n/client.ts`) already expects this exact shape.
+**No longer in use.** Chat now calls Gemini directly from `lib/agent/gemini.ts` —
+the n8n hop added a round trip through a self-hosted home-network server for no
+benefit once the logic below (map messages to Gemini's format, call Gemini
+with Google Search grounding, shape the response) is just as easy to run
+in-process. The workflow described below can be deleted from your n8n
+instance; kept this file only as a record of what it used to do and why.
+
+This used to be what `app/api/chat/route.ts` called. Built manually in an n8n
+instance; the code side (`lib/n8n/client.ts`, now deleted) expected this exact shape.
 
 ## What our server sends
 
