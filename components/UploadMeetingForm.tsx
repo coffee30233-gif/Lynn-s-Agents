@@ -4,6 +4,12 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+// Supabase's free-tier plan caps individual Storage uploads at 50MB — this
+// is a platform limit, not something the bucket's own size-limit setting can
+// override, so it's worth checking client-side and failing with a message
+// that explains *why* rather than surfacing Supabase's raw upload error.
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
 export function UploadMeetingForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -11,6 +17,22 @@ export function UploadMeetingForm() {
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<"idle" | "uploading" | "error">("idle");
   const [error, setError] = useState("");
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    if (selected && selected.size > MAX_FILE_SIZE_BYTES) {
+      setFile(null);
+      setState("error");
+      setError(
+        `檔案有 ${(selected.size / 1024 / 1024).toFixed(0)}MB，超過 Supabase 免費方案 50MB 的上限。可以試試用錄音 App 的「語音／壓縮」模式重錄（通常 1 小時能壓到 50MB 以內），或考慮升級 Supabase 方案。`
+      );
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    setFile(selected);
+    setState("idle");
+    setError("");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,7 +86,7 @@ export function UploadMeetingForm() {
         ref={fileInputRef}
         type="file"
         accept="audio/*"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        onChange={handleFileChange}
         className="text-sm text-white/70 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-white/20"
       />
       <button
@@ -76,7 +98,8 @@ export function UploadMeetingForm() {
       </button>
       {state === "error" && <p className="text-sm text-red-300">{error}</p>}
       <p className="text-xs text-white/30">
-        錄音檔不會即時處理——上傳後會在背景轉錄與整理，處理時間依會議長度而定，之後可以隨時回來查看進度與結果。
+        單檔上限 50MB（Supabase 免費方案限制）——錄音 App 選「語音／壓縮」品質，1 小時通常壓得進去。
+        上傳後會在背景轉錄與整理，處理時間依會議長度而定，之後可以隨時回來查看進度與結果。
       </p>
     </form>
   );
