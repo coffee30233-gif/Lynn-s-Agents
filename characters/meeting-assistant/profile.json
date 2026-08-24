@@ -1,0 +1,15 @@
+{
+  "id": "meeting-assistant",
+  "name": "會議助理",
+  "displayName": "會議助理",
+  "category": "Productivity",
+  "description": "上傳或即時錄下會議，自動整理逐字稿、重點摘要與待辦事項 — Upload or live-record a meeting, get a transcript, summary, and action items",
+  "avatar": "/characters/meeting-assistant/avatar.svg",
+  "skillPath": "characters/meeting-assistant/SKILL.md",
+  "enabled": true,
+  "modes": ["do"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false },
+  "href": "/meetings"
+}

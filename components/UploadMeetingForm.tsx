@@ -3,12 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-
-// Supabase's free-tier plan caps individual Storage uploads at 50MB — this
-// is a platform limit, not something the bucket's own size-limit setting can
-// override, so it's worth checking client-side and failing with a message
-// that explains *why* rather than surfacing Supabase's raw upload error.
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+import { MAX_MEETING_AUDIO_BYTES } from "@/lib/meetings/constants";
 
 export function UploadMeetingForm() {
   const router = useRouter();
@@ -20,7 +15,7 @@ export function UploadMeetingForm() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null;
-    if (selected && selected.size > MAX_FILE_SIZE_BYTES) {
+    if (selected && selected.size > MAX_MEETING_AUDIO_BYTES) {
       setFile(null);
       setState("error");
       setError(

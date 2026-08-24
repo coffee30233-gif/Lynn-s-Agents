@@ -23,6 +23,10 @@ export interface CharacterProfile {
   voice: VoiceConfig;
   tools: string[];
   memory: MemoryConfig;
+  /** Overrides the homepage card's link (default `/chat/{id}`) — for
+   * characters that aren't a chat at all, like the meeting assistant, which
+   * only borrows the character grid for visual/navigational consistency. */
+  href?: string;
 }
 
 export interface Source {

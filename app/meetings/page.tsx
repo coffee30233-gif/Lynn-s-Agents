@@ -40,6 +40,13 @@ export default async function MeetingsPage() {
 
         <UploadMeetingForm />
 
+        <Link
+          href="/meetings/live"
+          className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm font-medium text-white transition-colors hover:bg-white/[0.06]"
+        >
+          🎙️ 開始即時會議錄音 · Start a live recording
+        </Link>
+
         <div className="mt-8 flex flex-col gap-3">
           {meetings.length === 0 && (
             <p className="text-sm text-white/30">還沒有上傳任何會議錄音。</p>

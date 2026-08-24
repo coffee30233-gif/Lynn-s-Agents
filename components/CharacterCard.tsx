@@ -5,7 +5,7 @@ import type { CharacterProfile } from "@/types";
 export function CharacterCard({ character }: { character: CharacterProfile }) {
   return (
     <Link
-      href={`/chat/${character.id}`}
+      href={character.href ?? `/chat/${character.id}`}
       className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:border-white/25 hover:bg-white/[0.06]"
     >
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-ink-800">

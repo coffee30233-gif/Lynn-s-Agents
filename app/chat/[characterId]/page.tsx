@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ChatView } from "@/components/ChatView";
 import { VoiceTranscriptView } from "@/components/VoiceTranscriptView";
@@ -30,6 +30,11 @@ export default async function ChatPage({
 }) {
   const character = getCharacterById(params.characterId);
   if (!character) notFound();
+  // Characters with an href override (e.g. the meeting assistant) aren't a
+  // chat at all — their card already links straight to that href, this only
+  // matters if someone reaches /chat/{id} directly (a stale link, a typed
+  // URL).
+  if (character.href) redirect(character.href);
 
   let initialMessages: ChatMessage[] | undefined;
   let initialConversationId: string | undefined;

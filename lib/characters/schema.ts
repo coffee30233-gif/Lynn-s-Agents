@@ -47,5 +47,6 @@ export function parseCharacterProfile(raw: unknown, sourcePath: string): Charact
     memory: {
       enabled: typeof memoryRaw.enabled === "boolean" ? memoryRaw.enabled : false,
     },
+    href: typeof p.href === "string" && p.href !== "" ? p.href : undefined,
   };
 }
