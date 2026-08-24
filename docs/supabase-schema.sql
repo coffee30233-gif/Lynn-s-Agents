@@ -142,3 +142,57 @@ alter table plans add column if not exists google_event_id text;
 --    "Redirect URLs" so the magic link can redirect back to /auth/callback.
 -- 3. Settings -> API -> copy "Project URL" and the "anon public" key into
 --    .env.local as NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.
+
+-- Migration: Meeting Assistant ("會議助理"). Same rules as above — safe to
+-- re-run, safe on a fresh database.
+--
+-- Manual step required first: create a PRIVATE Storage bucket named exactly
+-- "meeting-audio" (Storage -> New bucket). Also raise its file-size limit —
+-- the dashboard default (commonly 50MB) will reject a 1+ hour phone
+-- recording; set it well above your expected max (e.g. 500MB), and check
+-- Settings -> Storage isn't capping it lower project-wide.
+create table if not exists meetings (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid references auth.users not null,
+  title        text not null,
+  -- Path inside the "meeting-audio" bucket: "{userId}/{meetingId}.<ext>".
+  audio_path   text not null,
+  status       text not null default 'uploaded'
+               check (status in ('uploaded', 'processing', 'done', 'failed')),
+  error        text,
+  -- [{ "speaker": "Speaker A" | a stated real name, "text": "..." }, ...]
+  transcript   jsonb,
+  summary      text,
+  -- [{ "text": "...", "owner": string | null }, ...]
+  action_items jsonb,
+  notes        text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists meetings_user_id_created_at_idx
+  on meetings (user_id, created_at desc);
+
+alter table meetings enable row level security;
+
+create policy "meetings_select_own" on meetings
+  for select using (auth.uid() = user_id);
+create policy "meetings_insert_own" on meetings
+  for insert with check (auth.uid() = user_id);
+create policy "meetings_update_own" on meetings
+  for update using (auth.uid() = user_id);
+create policy "meetings_delete_own" on meetings
+  for delete using (auth.uid() = user_id);
+
+-- Storage policies for the "meeting-audio" bucket (bucket itself must be
+-- created via the dashboard first — SQL can't create buckets). Object paths
+-- are "{userId}/{meetingId}.<ext>", so the first path segment is the owner.
+create policy "meeting_audio_select_own" on storage.objects for select using (
+  bucket_id = 'meeting-audio' and (storage.foldername(name))[1] = auth.uid()::text
+);
+create policy "meeting_audio_insert_own" on storage.objects for insert with check (
+  bucket_id = 'meeting-audio' and (storage.foldername(name))[1] = auth.uid()::text
+);
+create policy "meeting_audio_delete_own" on storage.objects for delete using (
+  bucket_id = 'meeting-audio' and (storage.foldername(name))[1] = auth.uid()::text
+);

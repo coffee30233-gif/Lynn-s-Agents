@@ -21,6 +21,10 @@ export async function SiteHeader() {
         <span className="sm:hidden">我的行程</span>
         <span className="hidden sm:inline">我的行程 · Plans</span>
       </Link>
+      <Link href="/meetings" className="whitespace-nowrap text-white/60 transition-colors hover:text-white">
+        <span className="sm:hidden">會議助理</span>
+        <span className="hidden sm:inline">會議助理 · Meetings</span>
+      </Link>
       <Link href="/history" className="whitespace-nowrap text-white/60 transition-colors hover:text-white">
         <span className="sm:hidden">歷史紀錄</span>
         <span className="hidden sm:inline">歷史紀錄 · History</span>
