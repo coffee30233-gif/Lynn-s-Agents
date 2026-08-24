@@ -1,5 +1,5 @@
 import "server-only";
-import { GoogleGenAI, Type, FileState, createUserContent, createPartFromUri } from "@google/genai";
+import { GoogleGenAI, Type, FileState, ApiError, createUserContent, createPartFromUri } from "@google/genai";
 import type { TranscriptSegment, ActionItem } from "@/lib/meetings/queries";
 
 /**
@@ -86,6 +86,35 @@ function getClient(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
+// 503 (model overloaded) and 429 (rate limited) are both "try again shortly"
+// per Google's own guidance, and observed in practice (a fresh flash-tier
+// model can be genuinely overloaded at times) — worth one or two quick
+// retries here rather than always pushing that back onto the user clicking
+// "重試" in MeetingStatusPoller. Kept short (a few seconds, not a long
+// backoff) since this still has to fit inside Vercel's 60s cap alongside
+// everything else in the pipeline.
+async function generateContentWithRetry(ai: GoogleGenAI, fileUri: string, fileMimeType: string) {
+  const delaysMs = [2000, 5000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await ai.models.generateContent({
+        model: MEETING_MODEL_ID,
+        contents: [createUserContent([createPartFromUri(fileUri, fileMimeType), PROMPT])],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: RESPONSE_SCHEMA,
+          maxOutputTokens: 32768,
+        },
+      });
+    } catch (err) {
+      const isTransient = err instanceof ApiError && (err.status === 503 || err.status === 429);
+      if (!isTransient || attempt >= delaysMs.length) throw err;
+      console.log(`[meetings] generateContent got ${(err as ApiError).status}, retrying in ${delaysMs[attempt]}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
+    }
+  }
+}
+
 /**
  * One un-chunked call over the whole recording — see docs/plans for why:
  * short-circuiting to audio chunking would need client-side ffmpeg.wasm and
@@ -116,15 +145,7 @@ export async function generateMeetingReport(
   }
   console.log(`[meetings] gemini file active: ${file.name}`);
 
-  const response = await ai.models.generateContent({
-    model: MEETING_MODEL_ID,
-    contents: [createUserContent([createPartFromUri(file.uri!, file.mimeType ?? mimeType), PROMPT])],
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-      maxOutputTokens: 32768,
-    },
-  });
+  const response = await generateContentWithRetry(ai, file.uri!, file.mimeType ?? mimeType);
   console.log("[meetings] gemini generateContent done");
 
   const text = response.text;
