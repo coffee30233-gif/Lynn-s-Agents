@@ -13,10 +13,12 @@ import type { TranscriptSegment, ActionItem } from "@/lib/meetings/queries";
  * "gemini-3.1-flash" doesn't actually exist (that generation only ships
  * -lite/-lite-preview) — verified the full pipeline (Files API upload ->
  * ACTIVE -> generateContent + JSON responseSchema) end-to-end against the
- * real API with scripts/test-meeting-gemini.mjs before settling on this,
- * the newest non-lite, non-preview flash model available at the time.
+ * real API with scripts/test-meeting-gemini.mjs before settling on
+ * "gemini-3.7-flash" originally. Switched to "gemini-3.6-flash" per request
+ * (the same model my-passbook-app's bill-recognition feature already uses) —
+ * still a non-lite flash tier, so the reasoning above still applies.
  */
-const MEETING_MODEL_ID = "gemini-3.7-flash";
+const MEETING_MODEL_ID = "gemini-3.6-flash";
 
 const PROMPT = `You are transcribing and summarizing a single recorded meeting or conversation.
 

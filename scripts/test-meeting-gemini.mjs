@@ -35,7 +35,7 @@ const EXT_TO_MIME = {
 const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 const mimeType = EXT_TO_MIME[ext] ?? "audio/mpeg";
 
-const MODEL_ID = "gemini-3.7-flash";
+const MODEL_ID = "gemini-3.6-flash";
 
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
