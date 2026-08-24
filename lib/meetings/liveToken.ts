@@ -4,12 +4,18 @@ import { GoogleGenAI, Modality } from "@google/genai";
 /**
  * Same Live API mechanism as lib/voice/liveToken.ts (the English coach), but
  * for a meeting listener instead of a conversational partner: no character,
- * no skill, and — critically — Modality.TEXT instead of Modality.AUDIO. A
- * meeting isn't a conversation with the model; it must never speak up over
- * real participants. TEXT output modality means there's no synthesized
- * speech to accidentally play back at all, not just "the coach stays quiet"
- * by instruction — the constraint is baked into the token itself the same
- * way lib/voice/liveToken.ts bakes AUDIO in for the coach.
+ * no skill.
+ *
+ * Originally tried Modality.TEXT here (a meeting isn't a conversation with
+ * the model — it must never speak up over real participants, and TEXT-only
+ * output means there's no synthesized speech to accidentally play back at
+ * all). In practice the session closed almost immediately after connecting,
+ * which points at this specific live-preview model only really supporting
+ * AUDIO output — so this uses Modality.AUDIO instead, the modality already
+ * proven working for the coach on this exact model, and the audio chunks
+ * that come back are simply never wired to a player in
+ * hooks/useMeetingLiveSession.ts (unlike the coach's LiveAudioPlayer). Same
+ * end result — nothing audible plays — reached a more conservative way.
  *
  * Input transcription (what's picked up by the mic) arrives regardless of
  * the model's own output modality — see hooks/useLiveSession.ts, which reads
@@ -44,7 +50,7 @@ export async function createMeetingLiveToken(): Promise<MeetingLiveToken> {
       liveConnectConstraints: {
         model: LIVE_MODEL_ID,
         config: {
-          responseModalities: [Modality.TEXT],
+          responseModalities: [Modality.AUDIO],
         },
       },
     },

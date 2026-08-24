@@ -9,13 +9,19 @@ import { createClient } from "@/lib/supabase/client";
  * Live-recording mode for the meeting assistant. Shares the mic-capture
  * mechanics (AudioWorkletNode -> 16kHz PCM -> Live API) with
  * hooks/useLiveSession.ts, but is a separate hook rather than a shared
- * abstraction: unlike the coach, there's no audio playback at all (the
- * model never speaks — see lib/meetings/liveToken.ts), the transcript is one
- * continuous string instead of per-speaker chat bubbles (Live API doesn't
- * diarize; see the MeetingReport note about that), and ending a session
- * uploads a recording through the exact same pipeline the file-upload form
- * uses (POST /api/meetings -> Storage upload -> POST .../process) instead of
- * saving chat messages.
+ * abstraction: the transcript is one continuous string instead of
+ * per-speaker chat bubbles (Live API doesn't diarize; see the MeetingReport
+ * note about that), and ending a session uploads a recording through the
+ * exact same pipeline the file-upload form uses (POST /api/meetings ->
+ * Storage upload -> POST .../process) instead of saving chat messages.
+ *
+ * Connects with Modality.AUDIO (see lib/meetings/liveToken.ts for why —
+ * TEXT-only closed the session almost immediately in testing), but
+ * deliberately never wires the received audio chunks to a player the way
+ * hooks/useLiveSession.ts does — a meeting assistant audibly interrupting a
+ * real meeting would be much worse than staying silent, and the system
+ * instruction already tells it not to speak in the first place, so any
+ * audio that does come back is just dropped.
  */
 
 const INPUT_SAMPLE_RATE = 16000;
@@ -117,7 +123,7 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
 
       const session = await ai.live.connect({
         model: tokenJson.model,
-        config: { responseModalities: [Modality.TEXT], systemInstruction: tokenJson.systemInstruction },
+        config: { responseModalities: [Modality.AUDIO], systemInstruction: tokenJson.systemInstruction },
         callbacks: {
           onopen: () => setStatus("connected"),
           onmessage: (message: LiveServerMessage) => {
