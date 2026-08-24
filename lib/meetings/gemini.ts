@@ -32,7 +32,11 @@ Language: transcribe in the language actually spoken (do not translate). Write
 the summary, action items, and notes in that same language.
 
 Produce:
-1. A full transcript as speaker-attributed segments, in chronological order.
+1. A transcript as speaker-attributed segments, in chronological order. Keep
+   the substance of what was said, but write each segment as a lightly
+   condensed paraphrase rather than a strict word-for-word transcription —
+   drop filler words, false starts, and repetition, but never drop or alter
+   actual content, decisions, numbers, or names.
 2. A concise summary of what was discussed and any decisions made.
 3. A list of concrete action items mentioned. Include an "owner" only if a
    specific person is explicitly stated or unambiguously implied as
@@ -86,14 +90,22 @@ function getClient(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
+// A retry needs real time to have any chance of finishing — an actual
+// Vercel timeout observed in production showed 3 POSTs to Gemini (one file
+// upload + TWO generateContent attempts) before the function got killed at
+// 60s: the retry itself was what used up the remaining budget on an already
+// borderline-slow request. Below this much remaining time, don't retry at
+// all — surface the error immediately and let the user's own "重試" button
+// in MeetingStatusPoller start a fresh attempt with a fresh 60s budget,
+// rather than silently burning the current one on a retry that can't finish.
+const MIN_REMAINING_MS_TO_RETRY = 15_000;
+
 // 503 (model overloaded) and 429 (rate limited) are both "try again shortly"
 // per Google's own guidance, and observed in practice (a fresh flash-tier
-// model can be genuinely overloaded at times) — worth one or two quick
-// retries here rather than always pushing that back onto the user clicking
-// "重試" in MeetingStatusPoller. Kept short (a few seconds, not a long
-// backoff) since this still has to fit inside Vercel's 60s cap alongside
-// everything else in the pipeline.
-async function generateContentWithRetry(ai: GoogleGenAI, fileUri: string, fileMimeType: string) {
+// model can be genuinely overloaded at times) — worth a quick retry here
+// rather than always pushing that back onto the user, but only when there's
+// actually enough of the 60s budget left for it (see above).
+async function generateContentWithRetry(ai: GoogleGenAI, fileUri: string, fileMimeType: string, deadline: number) {
   const delaysMs = [2000, 5000];
   for (let attempt = 0; ; attempt++) {
     try {
@@ -108,7 +120,11 @@ async function generateContentWithRetry(ai: GoogleGenAI, fileUri: string, fileMi
       });
     } catch (err) {
       const isTransient = err instanceof ApiError && (err.status === 503 || err.status === 429);
-      if (!isTransient || attempt >= delaysMs.length) throw err;
+      const remaining = deadline - Date.now();
+      if (!isTransient || attempt >= delaysMs.length || remaining < MIN_REMAINING_MS_TO_RETRY) {
+        if (isTransient) console.log(`[meetings] not retrying — ${remaining}ms left, ${(err as ApiError).status}`);
+        throw err;
+      }
       console.log(`[meetings] generateContent got ${(err as ApiError).status}, retrying in ${delaysMs[attempt]}ms`);
       await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
     }
@@ -127,7 +143,11 @@ async function generateContentWithRetry(ai: GoogleGenAI, fileUri: string, fileMi
 export async function generateMeetingReport(
   audio: Blob,
   mimeType: string,
-  title: string
+  title: string,
+  /** Absolute Date.now()-style timestamp the caller expects to be killed by
+   * (Vercel's 60s cap) — used only to decide whether a transient-error retry
+   * has any real chance of finishing, not enforced as a hard cutoff here. */
+  deadline: number = Date.now() + 55_000
 ): Promise<MeetingReport> {
   const ai = getClient();
 
@@ -145,7 +165,7 @@ export async function generateMeetingReport(
   }
   console.log(`[meetings] gemini file active: ${file.name}`);
 
-  const response = await generateContentWithRetry(ai, file.uri!, file.mimeType ?? mimeType);
+  const response = await generateContentWithRetry(ai, file.uri!, file.mimeType ?? mimeType, deadline);
   console.log("[meetings] gemini generateContent done");
 
   const text = response.text;

@@ -28,6 +28,11 @@ function mimeTypeFor(audioPath: string): string {
 }
 
 export async function POST(req: NextRequest, { params }: { params: { meetingId: string } }) {
+  // 5s safety margin under Vercel's 60s hard cap — used to decide whether a
+  // transient-Gemini-error retry has any real chance of finishing before
+  // this whole invocation gets killed (see generateContentWithRetry).
+  const deadline = Date.now() + 55_000;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { meetingId: 
     }
 
     console.log(`[meetings] ${meeting.id}: calling Gemini`);
-    const report = await generateMeetingReport(audioBlob, mimeTypeFor(meeting.audioPath), meeting.title);
+    const report = await generateMeetingReport(audioBlob, mimeTypeFor(meeting.audioPath), meeting.title, deadline);
 
     await markDone(supabase, meeting.id, report);
     console.log(`[meetings] ${meeting.id}: done`);
