@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { MAX_MEETING_AUDIO_BYTES } from "@/lib/meetings/constants";
 import { createClient } from "@/lib/supabase/client";
+import { joinTranscriptText } from "@/lib/voice/transcriptJoin";
 
 /**
  * Live-recording mode for the meeting assistant. Shares the mic-capture
@@ -123,13 +124,28 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
 
       const session = await ai.live.connect({
         model: tokenJson.model,
-        config: { responseModalities: [Modality.AUDIO], systemInstruction: tokenJson.systemInstruction },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          systemInstruction: tokenJson.systemInstruction,
+          // Without this, input transcription auto-detects language per
+          // utterance and can drift to the wrong one mid-meeting — hinting
+          // the likely candidates (Taiwan Mandarin, English) keeps it from
+          // wandering into languages nobody in the room is speaking.
+          // Confirmed this doesn't get the config rejected before shipping
+          // it (a bad Live config closes the session immediately — see the
+          // Modality.AUDIO fix above for exactly that failure mode).
+          inputAudioTranscription: { languageCodes: ["cmn-Hant-TW", "en-US"] },
+        },
         callbacks: {
           onopen: () => setStatus("connected"),
           onmessage: (message: LiveServerMessage) => {
             const text = message.serverContent?.inputTranscription?.text;
             if (text) {
-              transcriptRef.current += text;
+              // Raw += here would leave "你 好" instead of "你好" between
+              // fragments (Live API sends them with a leading space, same
+              // issue useLiveSession.ts already handles) — this hook was
+              // missing that fix entirely until now.
+              transcriptRef.current = joinTranscriptText(transcriptRef.current, text);
               setLiveTranscript(transcriptRef.current);
             }
           },
