@@ -34,11 +34,14 @@ Language: transcribe in the language actually spoken (do not translate). Write
 the summary, action items, and notes in that same language.
 
 Produce:
-1. A transcript as speaker-attributed segments, in chronological order. Keep
-   the substance of what was said, but write each segment as a lightly
-   condensed paraphrase rather than a strict word-for-word transcription —
-   drop filler words, false starts, and repetition, but never drop or alter
-   actual content, decisions, numbers, or names.
+1. A transcript as speaker-attributed segments, in chronological order,
+   covering the ENTIRE recording from start to end — do not summarize,
+   condense, or skip any part of the conversation, and do not stop early.
+   The only cleanup allowed is removing pure disfluencies (um/uh, stutters,
+   exact word repetitions) — every topic, sentence, and exchange that
+   actually happened must be represented. If you are tempted to shorten this
+   because the recording is long, don't: a long recording should produce a
+   long transcript, not a shorter one.
 2. A concise summary of what was discussed and any decisions made.
 3. A list of concrete action items mentioned. Include an "owner" only if a
    specific person is explicitly stated or unambiguously implied as
