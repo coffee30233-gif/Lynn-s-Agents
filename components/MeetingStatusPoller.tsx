@@ -76,11 +76,54 @@ export function MeetingStatusPoller({ initialMeeting }: { initialMeeting: Meetin
     );
   }
 
-  return <MeetingReport meeting={meeting} />;
+  return <MeetingReport meeting={meeting} onMeetingChange={setMeeting} />;
 }
 
-function MeetingReport({ meeting }: { meeting: Meeting }) {
+function MeetingReport({ meeting, onMeetingChange }: { meeting: Meeting; onMeetingChange: (m: Meeting) => void }) {
   const [showTranscript, setShowTranscript] = useState(false);
+  const [speakerDrafts, setSpeakerDrafts] = useState<Record<string, string>>({});
+  const [savingSpeakers, setSavingSpeakers] = useState(false);
+  const [speakerError, setSpeakerError] = useState("");
+
+  const uniqueSpeakers = Array.from(new Set((meeting.transcript ?? []).map((seg) => seg.speaker)));
+
+  function draftFor(speaker: string): string {
+    return speakerDrafts[speaker] ?? speaker;
+  }
+
+  const hasRenames = uniqueSpeakers.some((s) => draftFor(s).trim() && draftFor(s).trim() !== s);
+
+  async function handleSaveSpeakerNames() {
+    if (!meeting.transcript || !hasRenames) return;
+    setSavingSpeakers(true);
+    setSpeakerError("");
+    try {
+      const renames = new Map(
+        uniqueSpeakers
+          .map((s) => [s, draftFor(s).trim()] as const)
+          .filter(([from, to]) => to && to !== from)
+      );
+      const updatedTranscript = meeting.transcript.map((seg) => ({
+        ...seg,
+        speaker: renames.get(seg.speaker) ?? seg.speaker,
+      }));
+
+      const res = await fetch(`/api/meetings/${meeting.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: updatedTranscript }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "儲存失敗");
+
+      onMeetingChange({ ...meeting, transcript: updatedTranscript });
+      setSpeakerDrafts({});
+    } catch (err) {
+      setSpeakerError(err instanceof Error ? err.message : "發生未知錯誤");
+    } finally {
+      setSavingSpeakers(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -122,14 +165,41 @@ function MeetingReport({ meeting }: { meeting: Meeting }) {
             {showTranscript ? "▾" : "▸"} 完整逐字稿 · 語者標記為機器判斷，可能不完全準確
           </button>
           {showTranscript && (
-            <div className="mt-3 flex flex-col gap-2.5">
-              {meeting.transcript.map((seg, i) => (
-                <p key={i} className="text-sm leading-relaxed text-white/80">
-                  <span className="font-medium text-white/50">{seg.speaker}：</span>
-                  {seg.text}
-                </p>
-              ))}
-            </div>
+            <>
+              <div className="mt-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <p className="text-xs text-white/40">修改講者名稱（例如把「Speaker A」改成真實姓名），會套用到整份逐字稿：</p>
+                <div className="flex flex-col gap-1.5">
+                  {uniqueSpeakers.map((speaker) => (
+                    <div key={speaker} className="flex items-center gap-2">
+                      <span className="w-24 shrink-0 truncate text-xs text-white/40">{speaker}</span>
+                      <input
+                        value={draftFor(speaker)}
+                        onChange={(e) => setSpeakerDrafts((prev) => ({ ...prev, [speaker]: e.target.value }))}
+                        className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-white focus:border-white/25 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSpeakerNames}
+                  disabled={!hasRenames || savingSpeakers}
+                  className="self-start rounded-lg border border-white/15 px-3 py-1 text-xs font-medium text-white transition-opacity enabled:hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {savingSpeakers ? "儲存中..." : "儲存講者名稱"}
+                </button>
+                {speakerError && <p className="text-xs text-red-300">{speakerError}</p>}
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2.5">
+                {meeting.transcript.map((seg, i) => (
+                  <p key={i} className="text-sm leading-relaxed text-white/80">
+                    <span className="font-medium text-white/50">{seg.speaker}：</span>
+                    {seg.text}
+                  </p>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

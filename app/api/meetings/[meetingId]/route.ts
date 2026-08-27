@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getMeeting, deleteMeeting } from "@/lib/meetings/queries";
+import { getMeeting, deleteMeeting, updateTranscript, type TranscriptSegment } from "@/lib/meetings/queries";
 
 export async function GET(req: NextRequest, { params }: { params: { meetingId: string } }) {
   const supabase = await createClient();
@@ -15,6 +15,44 @@ export async function GET(req: NextRequest, { params }: { params: { meetingId: s
   if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json({ meeting });
+}
+
+/**
+ * Renaming a speaker (e.g. "Speaker A" -> "Lynn" after reading the
+ * transcript) is a client-side find-and-replace over the whole array —
+ * the browser already has the full transcript loaded, so it just sends the
+ * updated array back rather than this route doing string-replace on
+ * Gemini's diarization output itself. Only transcript is editable this way;
+ * summary/actionItems/notes stay as Gemini produced them.
+ */
+export async function PATCH(req: NextRequest, { params }: { params: { meetingId: string } }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const meeting = await getMeeting(supabase, params.meetingId);
+  if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  let body: { transcript?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const isValidSegment = (s: unknown): s is TranscriptSegment =>
+    typeof s === "object" && s !== null && typeof (s as TranscriptSegment).speaker === "string" &&
+    typeof (s as TranscriptSegment).text === "string";
+  if (!Array.isArray(body.transcript) || !body.transcript.every(isValidSegment)) {
+    return NextResponse.json({ error: "transcript must be an array of {speaker, text}" }, { status: 400 });
+  }
+
+  await updateTranscript(supabase, meeting.id, body.transcript);
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { meetingId: string } }) {

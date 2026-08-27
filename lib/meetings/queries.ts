@@ -132,6 +132,18 @@ export async function markFailed(supabase: SupabaseClient, meetingId: string, me
   if (error) throw new Error(`Failed to mark meeting failed: ${error.message}`);
 }
 
+export async function updateTranscript(
+  supabase: SupabaseClient,
+  meetingId: string,
+  transcript: TranscriptSegment[]
+): Promise<void> {
+  const { error } = await supabase
+    .from("meetings")
+    .update({ transcript, updated_at: new Date().toISOString() })
+    .eq("id", meetingId);
+  if (error) throw new Error(`Failed to update transcript: ${error.message}`);
+}
+
 export async function deleteMeeting(supabase: SupabaseClient, meetingId: string): Promise<void> {
   const { error } = await supabase.from("meetings").delete().eq("id", meetingId);
   if (error) throw new Error(`Failed to delete meeting: ${error.message}`);
