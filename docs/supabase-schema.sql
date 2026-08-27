@@ -202,3 +202,23 @@ create policy "meeting_audio_insert_own" on storage.objects for insert with chec
 create policy "meeting_audio_delete_own" on storage.objects for delete using (
   bucket_id = 'meeting-audio' and (storage.foldername(name))[1] = auth.uid()::text
 );
+
+-- Migration: segment-at-a-time meeting processing. Same rules — safe to
+-- re-run, safe on a fresh database.
+--
+-- A single generateContent call producing a full-length transcript for a
+-- long recording was reliably exceeding Vercel's 60s hard cap. Recordings
+-- are now split client-side into time-based segments (lib/meetings/audioSplit.ts)
+-- and transcribed one segment per request/response.ts invocation, each with
+-- its own fresh 60s budget — the route re-triggers itself (a fetch to its
+-- own URL) after finishing one segment/the final summarize step, so the
+-- client only ever needs to fire the first request and then poll the row
+-- like before. total_segments is set once, up front, from how many segments
+-- the client actually uploaded; segments_done is how many of those have had
+-- their transcript appended to the `transcript` column so far — comparing
+-- the two is how the route knows whether there's another segment to
+-- transcribe or whether it's time for the final (fast, text-only) summarize
+-- pass. A recording that fits in one segment (the common case) still goes
+-- through this same path with total_segments = 1 — no special-casing.
+alter table meetings add column if not exists total_segments int not null default 1;
+alter table meetings add column if not exists segments_done int not null default 0;

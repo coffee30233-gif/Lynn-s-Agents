@@ -67,15 +67,28 @@ export async function DELETE(req: NextRequest, { params }: { params: { meetingId
   const meeting = await getMeeting(supabase, params.meetingId);
   if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // audio_path is a folder that may hold several chunked parts (see
-  // lib/meetings/chunkedUpload.ts) — list it and remove every part rather
-  // than assuming a single object at that exact path. Best-effort: an
-  // orphaned Storage object is a much smaller problem than failing the
-  // delete entirely because of it. (The Supabase client resolves with
-  // { error } rather than throwing, so no try/catch needed here.)
-  const { data: entries } = await supabase.storage.from("meeting-audio").list(meeting.audioPath);
-  if (entries && entries.length > 0) {
-    await supabase.storage.from("meeting-audio").remove(entries.map((e) => `${meeting.audioPath}/${e.name}`));
+  // audio_path is two levels deep: one "segment-NNNN" subfolder per audio
+  // segment (lib/meetings/audioSplit.ts), each possibly holding several
+  // chunked "part-NNNN" files (lib/meetings/chunkedUpload.ts). list() only
+  // returns one level at a time, so list the segment subfolders first, then
+  // list and collect every part inside each before removing anything.
+  // Best-effort: an orphaned Storage object is a much smaller problem than
+  // failing the delete entirely because of it. (The Supabase client
+  // resolves with { error } rather than throwing, so no try/catch needed.)
+  const { data: segmentFolders } = await supabase.storage.from("meeting-audio").list(meeting.audioPath);
+  if (segmentFolders && segmentFolders.length > 0) {
+    const allObjectPaths = (
+      await Promise.all(
+        segmentFolders.map(async (folder) => {
+          const segmentPath = `${meeting.audioPath}/${folder.name}`;
+          const { data: parts } = await supabase.storage.from("meeting-audio").list(segmentPath);
+          return (parts ?? []).map((part) => `${segmentPath}/${part.name}`);
+        })
+      )
+    ).flat();
+    if (allObjectPaths.length > 0) {
+      await supabase.storage.from("meeting-audio").remove(allObjectPaths);
+    }
   }
   await deleteMeeting(supabase, params.meetingId);
 

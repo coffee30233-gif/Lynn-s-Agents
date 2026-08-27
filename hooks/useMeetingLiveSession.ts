@@ -6,6 +6,8 @@ import { MAX_MEETING_AUDIO_BYTES } from "@/lib/meetings/constants";
 import { createClient } from "@/lib/supabase/client";
 import { joinTranscriptText } from "@/lib/voice/transcriptJoin";
 import { uploadMeetingAudioChunked } from "@/lib/meetings/chunkedUpload";
+import { splitAudioIntoSegments } from "@/lib/meetings/audioSplit";
+import { segmentFolderName } from "@/lib/meetings/segmentPath";
 
 /**
  * Live-recording mode for the meeting assistant. Shares the mic-capture
@@ -54,22 +56,19 @@ interface UseMeetingLiveSessionResult {
   finish: (title: string) => Promise<string | null>;
 }
 
-function pickRecorderMimeType(): { mimeType: string; fileExt: string } {
+// The recorder's own container format doesn't matter beyond this hook —
+// splitAudioIntoSegments() decodes whatever it produces and re-encodes as
+// WAV anyway, so there's no fileExt to track here the way there used to be.
+function pickRecorderMimeType(): string {
   // Safari (mac/iOS) doesn't support "audio/webm" for MediaRecorder — falls
   // back to "audio/mp4" (AAC), which it does support.
-  const candidates: { mimeType: string; fileExt: string }[] = [
-    { mimeType: "audio/webm;codecs=opus", fileExt: "webm" },
-    { mimeType: "audio/webm", fileExt: "webm" },
-    { mimeType: "audio/mp4", fileExt: "m4a" },
-  ];
-  for (const candidate of candidates) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(candidate.mimeType)) {
-      return candidate;
-    }
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  for (const mimeType of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType)) return mimeType;
   }
   // Let the browser pick a default rather than throwing — better to record
   // in something than to refuse to record at all.
-  return { mimeType: "", fileExt: "webm" };
+  return "";
 }
 
 export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
@@ -86,7 +85,6 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recorderMimeTypeRef = useRef("");
-  const fileExtRef = useRef("webm");
   const transcriptRef = useRef("");
 
   function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -188,9 +186,8 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
       };
       source.connect(workletNode);
 
-      const { mimeType, fileExt } = pickRecorderMimeType();
+      const mimeType = pickRecorderMimeType();
       recorderMimeTypeRef.current = mimeType;
-      fileExtRef.current = fileExt;
       const recorder = mimeType
         ? new MediaRecorder(micStream, { mimeType, audioBitsPerSecond: 32000 })
         : new MediaRecorder(micStream);
@@ -240,16 +237,24 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
     }
 
     try {
+      // Same time-based splitting as the file-upload form — each ~10-minute
+      // segment gets its own Gemini call with its own fresh 60s budget
+      // server-side. Re-decodes the just-recorded blob rather than reusing
+      // recorderMimeTypeRef's format directly, same as any other upload.
+      const segments = await splitAudioIntoSegments(blob);
+
       const createRes = await fetch("/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() || "即時會議紀錄", fileExt: fileExtRef.current }),
+        body: JSON.stringify({ title: title.trim() || "即時會議紀錄", fileExt: "wav", totalSegments: segments.length }),
       });
       const created = await createRes.json();
       if (!createRes.ok) throw new Error(created.error || "建立會議紀錄失敗");
 
       const supabase = createClient();
-      await uploadMeetingAudioChunked(supabase, created.audioPath, fileExtRef.current, blob, blob.type);
+      for (let i = 0; i < segments.length; i++) {
+        await uploadMeetingAudioChunked(supabase, `${created.audioPath}/${segmentFolderName(i)}`, "wav", segments[i]!);
+      }
 
       fetch(`/api/meetings/${created.id}/process`, { method: "POST" }).catch(() => {});
 

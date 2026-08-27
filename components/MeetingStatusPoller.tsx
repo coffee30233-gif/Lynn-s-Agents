@@ -51,9 +51,15 @@ export function MeetingStatusPoller({ initialMeeting }: { initialMeeting: Meetin
     meeting.status === "processing" && now - new Date(meeting.updatedAt).getTime() > STUCK_AFTER_MS;
 
   if (meeting.status === "uploaded" || (meeting.status === "processing" && !isStuck)) {
+    const segmentProgress =
+      meeting.totalSegments > 1
+        ? meeting.segmentsDone < meeting.totalSegments
+          ? `（逐字稿 ${meeting.segmentsDone}/${meeting.totalSegments} 段）`
+          : "（逐字稿完成，整理摘要中）"
+        : "";
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/70">
-        處理中...這可能需要幾分鐘，取決於會議長度，可以先離開這頁，之後再回來查看。
+        處理中{segmentProgress}...這可能需要幾分鐘，取決於會議長度，可以先離開這頁，之後再回來查看。
       </div>
     );
   }

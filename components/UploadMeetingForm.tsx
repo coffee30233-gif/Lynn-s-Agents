@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_MEETING_AUDIO_BYTES } from "@/lib/meetings/constants";
 import { uploadMeetingAudioChunked } from "@/lib/meetings/chunkedUpload";
+import { splitAudioIntoSegments } from "@/lib/meetings/audioSplit";
+import { segmentFolderName } from "@/lib/meetings/segmentPath";
 
 export function UploadMeetingForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [state, setState] = useState<"idle" | "uploading" | "error">("idle");
+  const [state, setState] = useState<"idle" | "splitting" | "uploading" | "error">("idle");
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -32,22 +35,31 @@ export function UploadMeetingForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !file || state === "uploading") return;
+    if (!title.trim() || !file || state === "splitting" || state === "uploading") return;
 
-    setState("uploading");
     setError("");
     try {
-      const fileExt = file.name.split(".").pop() ?? "";
+      // Split into ~10-minute WAV segments up front — each gets transcribed
+      // by its own Gemini call with its own fresh 60s budget server-side
+      // (see app/api/meetings/[meetingId]/process/route.ts). A short
+      // recording just becomes a single segment, same path either way.
+      setState("splitting");
+      const segments = await splitAudioIntoSegments(file);
+
+      setState("uploading");
       const createRes = await fetch("/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), fileExt }),
+        body: JSON.stringify({ title: title.trim(), fileExt: "wav", totalSegments: segments.length }),
       });
       const created = await createRes.json();
       if (!createRes.ok) throw new Error(created.error || "建立會議紀錄失敗");
 
       const supabase = createClient();
-      await uploadMeetingAudioChunked(supabase, created.audioPath, fileExt, file, file.type || undefined);
+      for (let i = 0; i < segments.length; i++) {
+        setProgress(segments.length > 1 ? `上傳中（${i + 1}/${segments.length} 段）` : "上傳中...");
+        await uploadMeetingAudioChunked(supabase, `${created.audioPath}/${segmentFolderName(i)}`, "wav", segments[i]!);
+      }
 
       // Fire-and-forget — this call itself can run close to the 60s cap, and
       // the detail page's own polling (against the DB row, not this
@@ -62,6 +74,8 @@ export function UploadMeetingForm() {
       setError(err instanceof Error ? err.message : "發生未知錯誤");
     }
   }
+
+  const busy = state === "splitting" || state === "uploading";
 
   return (
     <form
@@ -84,10 +98,10 @@ export function UploadMeetingForm() {
       />
       <button
         type="submit"
-        disabled={!title.trim() || !file || state === "uploading"}
+        disabled={!title.trim() || !file || busy}
         className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-ink-950 transition-opacity enabled:hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {state === "uploading" ? "上傳中..." : "上傳並開始處理"}
+        {state === "splitting" ? "處理錄音中..." : state === "uploading" ? progress || "上傳中..." : "上傳並開始處理"}
       </button>
       {state === "error" && <p className="text-sm text-red-300">{error}</p>}
       <p className="text-xs text-white/30">

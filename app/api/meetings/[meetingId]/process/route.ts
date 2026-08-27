@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { getMeeting, markProcessing, markDone, markFailed } from "@/lib/meetings/queries";
-import { generateMeetingReport } from "@/lib/meetings/gemini";
+import { getMeeting, markProcessing, markDone, markFailed, appendSegmentTranscript } from "@/lib/meetings/queries";
+import { transcribeAudioSegment, summarizeTranscript } from "@/lib/meetings/gemini";
+import { segmentFolderName } from "@/lib/meetings/segmentPath";
 
 // Vercel Hobby's hard cap — can't be raised past this regardless of what's
-// declared here. The pipeline (Storage download -> Gemini file upload ->
-// wait for ACTIVE -> generateContent) has to fit inside it; there's no way
-// to resume a killed request, so a mid-flight kill just leaves the row
-// stuck at "processing" (see MeetingStatusPoller's stuck-detection retry).
+// declared here. A single call transcribing a whole 1+ hour recording was
+// reliably exceeding it; this route now does ONE unit of work per
+// invocation — transcribe one ~10-minute segment, or (once every segment is
+// done) run the final text-only summarize pass — and re-triggers itself for
+// the next unit before returning (see triggerNextStep below), so the
+// pipeline as a whole isn't bound by this cap even though each individual
+// piece is. There's still no way to resume a killed request mid-unit, so a
+// mid-flight kill leaves the row stuck at "processing" (see
+// MeetingStatusPoller's stuck-detection retry) — but "重試" now only has to
+// re-do the one unit that was in flight, not the whole recording, since
+// segmentsDone already reflects everything completed before that.
 export const maxDuration = 60;
 
 const EXT_TO_MIME: Record<string, string> = {
@@ -29,33 +37,42 @@ function mimeTypeForFilename(filename: string): string {
 }
 
 /**
- * audio_path is a Storage folder, not a file — the client may have split a
- * large recording into several "part-0000.<ext>", "part-0001.<ext>", ...
- * chunks (see lib/meetings/chunkedUpload.ts) purely to get under Supabase's
- * per-object size cap. Lists whatever's in there, downloads every part, and
- * concatenates them back into the exact original file before Gemini ever
- * sees it — a pure byte-level rejoin, so this has no effect on the analysis
- * itself (no chunk boundaries, no speaker-label continuity issue). Works
- * identically whether there's 1 part or many.
+ * A segment's own Storage folder ("{audioPath}/segment-0000") may itself
+ * hold several chunked parts (lib/meetings/chunkedUpload.ts) if that one
+ * segment alone were bigger than Supabase's per-object cap — unlikely at
+ * 16kHz mono for a ~10 minute segment, but the mechanism is there
+ * regardless. Lists whatever's in there, downloads every part, and
+ * concatenates them back into that segment's exact original file before
+ * Gemini ever sees it — a pure byte-level rejoin, no effect on the analysis.
  */
 async function downloadAndReassembleAudio(
   supabase: SupabaseClient,
-  audioPath: string
+  folderPath: string
 ): Promise<{ blob: Blob; mimeType: string }> {
-  const { data: entries, error: listError } = await supabase.storage.from("meeting-audio").list(audioPath);
+  const { data: entries, error: listError } = await supabase.storage.from("meeting-audio").list(folderPath);
   if (listError) throw new Error(`Failed to list audio parts: ${listError.message}`);
   const parts = (entries ?? []).filter((e) => e.name.startsWith("part-")).sort((a, b) => a.name.localeCompare(b.name));
-  if (parts.length === 0) throw new Error("No audio parts found in storage");
+  if (parts.length === 0) throw new Error(`No audio parts found in storage at ${folderPath}`);
 
   const downloaded = await Promise.all(
     parts.map(async (part) => {
-      const { data, error } = await supabase.storage.from("meeting-audio").download(`${audioPath}/${part.name}`);
+      const { data, error } = await supabase.storage.from("meeting-audio").download(`${folderPath}/${part.name}`);
       if (error || !data) throw new Error(`Failed to download ${part.name}: ${error?.message ?? "no data"}`);
       return data;
     })
   );
 
   return { blob: new Blob(downloaded), mimeType: mimeTypeForFilename(parts[0]!.name) };
+}
+
+/** Fire-and-forget POST to this same route — starts the next unit of work
+ * (the next segment, or the final summarize pass) in a fresh invocation
+ * with a fresh 60s budget. Forwards the incoming request's cookies so the
+ * self-call passes the same auth.getUser() check. */
+function triggerNextStep(req: NextRequest) {
+  fetch(req.url, { method: "POST", headers: { cookie: req.headers.get("cookie") ?? "" } }).catch((err) => {
+    console.error("[meetings] failed to trigger next processing step:", err);
+  });
 }
 
 export async function POST(req: NextRequest, { params }: { params: { meetingId: string } }) {
@@ -75,21 +92,41 @@ export async function POST(req: NextRequest, { params }: { params: { meetingId: 
   const meeting = await getMeeting(supabase, params.meetingId);
   if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Mark processing before any slow work — if this whole request gets
-  // killed by Vercel's timeout further down, the row is at least left in a
+  // Mark processing before any slow work — if this invocation gets killed
+  // by Vercel's timeout further down, the row is at least left in a
   // reasoned-about state ("processing", not "uploaded") instead of looking
   // like nothing ever happened.
   await markProcessing(supabase, meeting.id);
 
   try {
-    console.log(`[meetings] ${meeting.id}: downloading from storage`);
-    const { blob: audioBlob, mimeType } = await downloadAndReassembleAudio(supabase, meeting.audioPath);
+    if (meeting.segmentsDone < meeting.totalSegments) {
+      const segmentIndex = meeting.segmentsDone;
+      console.log(`[meetings] ${meeting.id}: transcribing segment ${segmentIndex + 1}/${meeting.totalSegments}`);
 
-    console.log(`[meetings] ${meeting.id}: calling Gemini`);
-    const report = await generateMeetingReport(audioBlob, mimeType, meeting.title, deadline);
+      const folderPath = `${meeting.audioPath}/${segmentFolderName(segmentIndex)}`;
+      const { blob, mimeType } = await downloadAndReassembleAudio(supabase, folderPath);
+      const segmentTranscript = await transcribeAudioSegment(blob, mimeType, meeting.title, deadline);
 
-    await markDone(supabase, meeting.id, report);
-    console.log(`[meetings] ${meeting.id}: done`);
+      // Only prefix labels when there's more than one segment — a
+      // single-segment recording (the common case) stays exactly as before,
+      // no "第1段 " clutter. Multiple segments have no cross-segment speaker
+      // continuity (Gemini never sees them together), so the prefix makes
+      // that visible instead of implying a false match — MeetingStatusPoller's
+      // speaker-rename feature is how the user reconciles labels by hand.
+      const labeled =
+        meeting.totalSegments > 1
+          ? segmentTranscript.map((seg) => ({ ...seg, speaker: `第${segmentIndex + 1}段 ${seg.speaker}` }))
+          : segmentTranscript;
+
+      await appendSegmentTranscript(supabase, meeting.id, labeled);
+      console.log(`[meetings] ${meeting.id}: segment ${segmentIndex + 1}/${meeting.totalSegments} done`);
+      triggerNextStep(req);
+    } else {
+      console.log(`[meetings] ${meeting.id}: all segments transcribed, summarizing`);
+      const summary = await summarizeTranscript(meeting.transcript ?? [], deadline);
+      await markDone(supabase, meeting.id, summary);
+      console.log(`[meetings] ${meeting.id}: done`);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`[meetings] ${meeting.id}: failed —`, message);

@@ -1,8 +1,10 @@
-// Standalone check for lib/meetings/gemini.ts's pipeline (Files API upload ->
-// poll for ACTIVE -> generateContent with a JSON responseSchema), run
-// directly against the real Gemini API with a short local audio file —
-// independent of Next.js/Supabase/auth, so a failure here points at the
-// Gemini call itself rather than anything else in the request chain.
+// Standalone check for lib/meetings/gemini.ts's two-call pipeline:
+// transcribeAudioSegment() (Files API upload -> poll ACTIVE -> generateContent
+// with a transcript-only JSON schema) then summarizeTranscript() (fast,
+// text-only call over the result) — run directly against the real Gemini
+// API with a short local audio file, independent of Next.js/Supabase/auth,
+// so a failure here points at the Gemini call itself rather than anything
+// else in the request chain.
 //
 // Usage: node scripts/test-meeting-gemini.mjs <path-to-audio-file>
 // Needs GEMINI_API_KEY in the environment (e.g. `set -a; . .env.local; set +a`
@@ -37,7 +39,7 @@ const mimeType = EXT_TO_MIME[ext] ?? "audio/mpeg";
 
 const MODEL_ID = "gemini-3.6-flash";
 
-const RESPONSE_SCHEMA = {
+const TRANSCRIBE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     transcript: {
@@ -48,6 +50,18 @@ const RESPONSE_SCHEMA = {
         required: ["speaker", "text"],
       },
     },
+  },
+  required: ["transcript"],
+};
+
+const TRANSCRIBE_PROMPT = `Transcribe this audio clip in full, covering it from start to end — do not
+condense or skip anything, only clean up filler words (um/uh). Label
+speakers "Speaker A", "Speaker B" etc. by voice, consistently. Respond only
+in the requested JSON structure.`;
+
+const SUMMARIZE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
     summary: { type: Type.STRING },
     actionItems: {
       type: Type.ARRAY,
@@ -59,13 +73,8 @@ const RESPONSE_SCHEMA = {
     },
     notes: { type: Type.STRING },
   },
-  required: ["transcript", "summary", "actionItems", "notes"],
+  required: ["summary", "actionItems", "notes"],
 };
-
-const PROMPT = `Transcribe this short audio clip. Label speakers "Speaker A", "Speaker B" etc.
-by voice, consistently. Write a one-sentence summary, any action items (owner
-null if not stated), and any other notes. Respond only in the requested JSON
-structure.`;
 
 function elapsed(start) {
   return `${((Date.now() - start) / 1000).toFixed(1)}s`;
@@ -96,19 +105,32 @@ async function main() {
   console.log(`[test] file ACTIVE (${elapsed(t2)} total)`);
 
   const t3 = Date.now();
-  const response = await ai.models.generateContent({
+  const transcribeResponse = await ai.models.generateContent({
     model: MODEL_ID,
-    contents: [createUserContent([createPartFromUri(file.uri, file.mimeType ?? mimeType), PROMPT])],
-    config: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, maxOutputTokens: 8192 },
+    contents: [createUserContent([createPartFromUri(file.uri, file.mimeType ?? mimeType), TRANSCRIBE_PROMPT])],
+    config: { responseMimeType: "application/json", responseSchema: TRANSCRIBE_SCHEMA, maxOutputTokens: 65536 },
   });
-  console.log(`[test] generateContent done (${elapsed(t3)})`);
-  console.log(`[test] total elapsed: ${elapsed(t0)}`);
+  console.log(`[test] transcribe done (${elapsed(t3)}), finishReason=${transcribeResponse.candidates?.[0]?.finishReason}`);
+  const transcript = JSON.parse(transcribeResponse.text).transcript;
+  console.log("[test] transcript:");
+  console.log(JSON.stringify(transcript, null, 2));
 
-  const text = response.text;
-  if (!text) throw new Error("Empty response text");
-  const parsed = JSON.parse(text);
-  console.log("[test] parsed JSON:");
-  console.log(JSON.stringify(parsed, null, 2));
+  const t4 = Date.now();
+  const transcriptText = transcript.map((seg) => `${seg.speaker}: ${seg.text}`).join("\n");
+  const summarizeResponse = await ai.models.generateContent({
+    model: MODEL_ID,
+    contents: [
+      createUserContent([
+        `Summarize this transcript: action items (owner null if not stated), and any other notes. Respond only in the requested JSON structure.\n\nTRANSCRIPT:\n${transcriptText}`,
+      ]),
+    ],
+    config: { responseMimeType: "application/json", responseSchema: SUMMARIZE_SCHEMA, maxOutputTokens: 65536 },
+  });
+  console.log(`[test] summarize done (${elapsed(t4)}), finishReason=${summarizeResponse.candidates?.[0]?.finishReason}`);
+  console.log("[test] summary:");
+  console.log(JSON.stringify(JSON.parse(summarizeResponse.text), null, 2));
+
+  console.log(`[test] total elapsed: ${elapsed(t0)}`);
 }
 
 main().catch((err) => {

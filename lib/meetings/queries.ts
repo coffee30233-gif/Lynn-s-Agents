@@ -22,6 +22,14 @@ export interface Meeting {
   summary: string | null;
   actionItems: ActionItem[] | null;
   notes: string | null;
+  /** How many audio segments this recording was split into client-side (see
+   * lib/meetings/audioSplit.ts) — 1 for a recording short enough to not need
+   * splitting, same code path either way. */
+  totalSegments: number;
+  /** How many of those segments have had their transcript appended to
+   * `transcript` so far. segmentsDone === totalSegments means transcription
+   * is complete and the next step is the final summarize pass. */
+  segmentsDone: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +44,8 @@ function mapRow(row: {
   summary: string | null;
   action_items: ActionItem[] | null;
   notes: string | null;
+  total_segments: number;
+  segments_done: number;
   created_at: string;
   updated_at: string;
 }): Meeting {
@@ -49,32 +59,44 @@ function mapRow(row: {
     summary: row.summary,
     actionItems: row.action_items,
     notes: row.notes,
+    totalSegments: row.total_segments,
+    segmentsDone: row.segments_done,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
 const MEETING_COLUMNS =
-  "id, title, audio_path, status, error, transcript, summary, action_items, notes, created_at, updated_at";
+  "id, title, audio_path, status, error, transcript, summary, action_items, notes, total_segments, segments_done, created_at, updated_at";
 
 /**
  * Takes an explicit id (the caller generates it with crypto.randomUUID(),
  * same global already used for conversationId in app/api/chat/route.ts)
  * instead of letting the table's default generate one — the route handler
  * needs the id up front to compute audio_path ("{userId}/{id}", a Storage
- * folder the client uploads one or more chunked parts into — see
- * lib/meetings/chunkedUpload.ts) in the same request that creates the row,
- * rather than inserting a placeholder path and updating it once the
- * client's Storage upload finishes.
+ * folder the client uploads one subfolder per audio segment into — see
+ * lib/meetings/audioSplit.ts and chunkedUpload.ts) in the same request that
+ * creates the row, rather than inserting a placeholder path and updating it
+ * once the client's Storage upload finishes.
+ *
+ * totalSegments is known client-side before any upload happens (splitting
+ * is done first, entirely in the browser), so it's set here at creation
+ * time rather than patched in later.
  */
 export async function createMeeting(
   supabase: SupabaseClient,
   userId: string,
-  input: { id: string; title: string; audioPath: string }
+  input: { id: string; title: string; audioPath: string; totalSegments: number }
 ): Promise<string> {
   const { data, error } = await supabase
     .from("meetings")
-    .insert({ id: input.id, user_id: userId, title: input.title, audio_path: input.audioPath })
+    .insert({
+      id: input.id,
+      user_id: userId,
+      title: input.title,
+      audio_path: input.audioPath,
+      total_segments: input.totalSegments,
+    })
     .select("id")
     .single();
 
@@ -105,19 +127,48 @@ export async function markProcessing(supabase: SupabaseClient, meetingId: string
   if (error) throw new Error(`Failed to mark meeting processing: ${error.message}`);
 }
 
+/**
+ * Appends one segment's transcript to whatever's already accumulated and
+ * bumps segments_done — a plain read-modify-write (no concurrent writers
+ * are possible for one meeting: the pipeline is strictly self-chained one
+ * step at a time, see process/route.ts) rather than an atomic jsonb
+ * concat, since there's no RPC/raw-SQL infrastructure in this codebase to
+ * do that in one round trip.
+ */
+export async function appendSegmentTranscript(
+  supabase: SupabaseClient,
+  meetingId: string,
+  segmentTranscript: TranscriptSegment[]
+): Promise<void> {
+  const meeting = await getMeeting(supabase, meetingId);
+  if (!meeting) throw new Error("Meeting not found");
+
+  const { error } = await supabase
+    .from("meetings")
+    .update({
+      transcript: [...(meeting.transcript ?? []), ...segmentTranscript],
+      segments_done: meeting.segmentsDone + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", meetingId);
+  if (error) throw new Error(`Failed to append segment transcript: ${error.message}`);
+}
+
+/** Final step of the pipeline, once segmentsDone === totalSegments — writes
+ * the summarizeTranscript() result. Doesn't touch `transcript` itself,
+ * which was already fully assembled by appendSegmentTranscript. */
 export async function markDone(
   supabase: SupabaseClient,
   meetingId: string,
-  report: { transcript: TranscriptSegment[]; summary: string; actionItems: ActionItem[]; notes: string }
+  summary: { summary: string; actionItems: ActionItem[]; notes: string }
 ): Promise<void> {
   const { error } = await supabase
     .from("meetings")
     .update({
       status: "done",
-      transcript: report.transcript,
-      summary: report.summary,
-      action_items: report.actionItems,
-      notes: report.notes,
+      summary: summary.summary,
+      action_items: summary.actionItems,
+      notes: summary.notes,
       updated_at: new Date().toISOString(),
     })
     .eq("id", meetingId);
@@ -132,6 +183,8 @@ export async function markFailed(supabase: SupabaseClient, meetingId: string, me
   if (error) throw new Error(`Failed to mark meeting failed: ${error.message}`);
 }
 
+/** User-driven edit (renaming a speaker after reading the transcript) — the
+ * only field MeetingStatusPoller's PATCH route lets the user change. */
 export async function updateTranscript(
   supabase: SupabaseClient,
   meetingId: string,
