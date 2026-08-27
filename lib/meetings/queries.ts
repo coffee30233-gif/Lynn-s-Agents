@@ -61,9 +61,11 @@ const MEETING_COLUMNS =
  * Takes an explicit id (the caller generates it with crypto.randomUUID(),
  * same global already used for conversationId in app/api/chat/route.ts)
  * instead of letting the table's default generate one — the route handler
- * needs the id up front to compute audio_path ("{userId}/{id}.<ext>") in the
- * same request that creates the row, rather than inserting a placeholder
- * path and updating it once the client's Storage upload finishes.
+ * needs the id up front to compute audio_path ("{userId}/{id}", a Storage
+ * folder the client uploads one or more chunked parts into — see
+ * lib/meetings/chunkedUpload.ts) in the same request that creates the row,
+ * rather than inserting a placeholder path and updating it once the
+ * client's Storage upload finishes.
  */
 export async function createMeeting(
   supabase: SupabaseClient,

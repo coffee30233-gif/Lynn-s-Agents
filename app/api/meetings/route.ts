@@ -41,7 +41,11 @@ export async function POST(req: NextRequest) {
   }
 
   const id = crypto.randomUUID();
-  const audioPath = `${user.id}/${id}.${fileExt}`;
+  // A folder, not a file — the client may upload this as several chunked
+  // parts under it (see lib/meetings/chunkedUpload.ts) if the recording is
+  // bigger than Supabase's per-object Storage cap. process/route.ts lists
+  // and reassembles whatever's in here regardless of part count.
+  const audioPath = `${user.id}/${id}`;
   await createMeeting(supabase, user.id, { id, title, audioPath });
 
   return NextResponse.json({ id, audioPath });

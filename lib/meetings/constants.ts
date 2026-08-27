@@ -1,7 +1,11 @@
-// Supabase's free-tier plan caps individual Storage uploads at 50MB — this
-// is a platform limit, not something the bucket's own size-limit setting can
-// override (confirmed while setting up the meeting-audio bucket, where the
-// dashboard wouldn't accept a higher value at all). Shared by the file-picker
-// upload form and the live-recording flow, both of which need to check this
-// client-side before attempting a Storage upload.
-export const MAX_MEETING_AUDIO_BYTES = 50 * 1024 * 1024;
+// Supabase's free-tier plan caps individual Storage objects at 50MB. Rather
+// than reject anything bigger, uploads are split into parts safely under
+// that cap (see chunkedUpload.ts) and reassembled server-side before ever
+// reaching Gemini — so the real ceiling here isn't Storage's per-object cap
+// anymore, it's how much a Vercel function can comfortably hold in memory
+// while downloading all the parts back and reassembling them (process/route.ts
+// needs roughly 2x the file size in memory transiently: the reassembled
+// Blob plus what's being uploaded to Gemini's Files API). 400MB is a
+// generous sanity ceiling — a multi-hour meeting at a reasonable voice
+// bitrate should land well under it — not a hard technical limit.
+export const MAX_MEETING_AUDIO_BYTES = 400 * 1024 * 1024;

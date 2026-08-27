@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getMeeting, markProcessing, markDone, markFailed } from "@/lib/meetings/queries";
 import { generateMeetingReport } from "@/lib/meetings/gemini";
@@ -22,9 +23,39 @@ const EXT_TO_MIME: Record<string, string> = {
   amr: "audio/amr",
 };
 
-function mimeTypeFor(audioPath: string): string {
-  const ext = audioPath.split(".").pop()?.toLowerCase() ?? "";
+function mimeTypeForFilename(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   return EXT_TO_MIME[ext] ?? "audio/mpeg";
+}
+
+/**
+ * audio_path is a Storage folder, not a file — the client may have split a
+ * large recording into several "part-0000.<ext>", "part-0001.<ext>", ...
+ * chunks (see lib/meetings/chunkedUpload.ts) purely to get under Supabase's
+ * per-object size cap. Lists whatever's in there, downloads every part, and
+ * concatenates them back into the exact original file before Gemini ever
+ * sees it — a pure byte-level rejoin, so this has no effect on the analysis
+ * itself (no chunk boundaries, no speaker-label continuity issue). Works
+ * identically whether there's 1 part or many.
+ */
+async function downloadAndReassembleAudio(
+  supabase: SupabaseClient,
+  audioPath: string
+): Promise<{ blob: Blob; mimeType: string }> {
+  const { data: entries, error: listError } = await supabase.storage.from("meeting-audio").list(audioPath);
+  if (listError) throw new Error(`Failed to list audio parts: ${listError.message}`);
+  const parts = (entries ?? []).filter((e) => e.name.startsWith("part-")).sort((a, b) => a.name.localeCompare(b.name));
+  if (parts.length === 0) throw new Error("No audio parts found in storage");
+
+  const downloaded = await Promise.all(
+    parts.map(async (part) => {
+      const { data, error } = await supabase.storage.from("meeting-audio").download(`${audioPath}/${part.name}`);
+      if (error || !data) throw new Error(`Failed to download ${part.name}: ${error?.message ?? "no data"}`);
+      return data;
+    })
+  );
+
+  return { blob: new Blob(downloaded), mimeType: mimeTypeForFilename(parts[0]!.name) };
 }
 
 export async function POST(req: NextRequest, { params }: { params: { meetingId: string } }) {
@@ -52,15 +83,10 @@ export async function POST(req: NextRequest, { params }: { params: { meetingId: 
 
   try {
     console.log(`[meetings] ${meeting.id}: downloading from storage`);
-    const { data: audioBlob, error: downloadError } = await supabase.storage
-      .from("meeting-audio")
-      .download(meeting.audioPath);
-    if (downloadError || !audioBlob) {
-      throw new Error(`Failed to download audio: ${downloadError?.message ?? "no data"}`);
-    }
+    const { blob: audioBlob, mimeType } = await downloadAndReassembleAudio(supabase, meeting.audioPath);
 
     console.log(`[meetings] ${meeting.id}: calling Gemini`);
-    const report = await generateMeetingReport(audioBlob, mimeTypeFor(meeting.audioPath), meeting.title, deadline);
+    const report = await generateMeetingReport(audioBlob, mimeType, meeting.title, deadline);
 
     await markDone(supabase, meeting.id, report);
     console.log(`[meetings] ${meeting.id}: done`);

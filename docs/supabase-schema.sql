@@ -148,13 +148,15 @@ alter table plans add column if not exists google_event_id text;
 --
 -- Manual step required first: create a PRIVATE Storage bucket named exactly
 -- "meeting-audio" (Storage -> New bucket). On the free Supabase plan, 50MB
--- is a hard per-file cap the bucket's own size-limit setting can't exceed —
--- a 1+ hour recording needs to be compressed (e.g. AAC/Opus at a "voice" or
--- "compressed" quality setting, not WAV or a high-quality/lossless mode) to
--- fit under it; only a paid Supabase plan raises the actual ceiling. The
--- app's upload form also checks this client-side (MAX_FILE_SIZE_BYTES in
--- components/UploadMeetingForm.tsx) so an oversized file fails with an
--- explanation instead of a raw Storage error.
+-- is a hard per-OBJECT cap the bucket's own size-limit setting can't
+-- exceed — but audio_path is a folder, not a single file: recordings bigger
+-- than that get split client-side into several parts under the cap (see
+-- lib/meetings/chunkedUpload.ts) and reassembled back into the exact
+-- original file in app/api/meetings/[meetingId]/process/route.ts before
+-- Gemini ever sees it, so this cap doesn't actually limit recording length
+-- in practice — MAX_MEETING_AUDIO_BYTES (lib/meetings/constants.ts) is a
+-- much higher sanity ceiling instead, there mainly to bound how much a
+-- Vercel function needs to hold in memory while reassembling.
 create table if not exists meetings (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid references auth.users not null,

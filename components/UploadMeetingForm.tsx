@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_MEETING_AUDIO_BYTES } from "@/lib/meetings/constants";
+import { uploadMeetingAudioChunked } from "@/lib/meetings/chunkedUpload";
 
 export function UploadMeetingForm() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export function UploadMeetingForm() {
       setFile(null);
       setState("error");
       setError(
-        `檔案有 ${(selected.size / 1024 / 1024).toFixed(0)}MB，超過 Supabase 免費方案 50MB 的上限。可以試試用錄音 App 的「語音／壓縮」模式重錄（通常 1 小時能壓到 50MB 以內），或考慮升級 Supabase 方案。`
+        `檔案有 ${(selected.size / 1024 / 1024).toFixed(0)}MB，超過 ${MAX_MEETING_AUDIO_BYTES / 1024 / 1024}MB 上限，請試試壓縮錄音品質。`
       );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -46,10 +47,7 @@ export function UploadMeetingForm() {
       if (!createRes.ok) throw new Error(created.error || "建立會議紀錄失敗");
 
       const supabase = createClient();
-      const { error: uploadError } = await supabase.storage
-        .from("meeting-audio")
-        .upload(created.audioPath, file, { contentType: file.type || undefined });
-      if (uploadError) throw new Error(`上傳音檔失敗：${uploadError.message}`);
+      await uploadMeetingAudioChunked(supabase, created.audioPath, fileExt, file, file.type || undefined);
 
       // Fire-and-forget — this call itself can run close to the 60s cap, and
       // the detail page's own polling (against the DB row, not this
@@ -93,8 +91,7 @@ export function UploadMeetingForm() {
       </button>
       {state === "error" && <p className="text-sm text-red-300">{error}</p>}
       <p className="text-xs text-white/30">
-        單檔上限 50MB（Supabase 免費方案限制）——錄音 App 選「語音／壓縮」品質，1 小時通常壓得進去。
-        上傳後會在背景轉錄與整理，處理時間依會議長度而定，之後可以隨時回來查看進度與結果。
+        大檔案會自動分段上傳，不受單檔 50MB 限制。上傳後會在背景轉錄與整理，處理時間依會議長度而定，之後可以隨時回來查看進度與結果。
       </p>
     </form>
   );

@@ -5,6 +5,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import { MAX_MEETING_AUDIO_BYTES } from "@/lib/meetings/constants";
 import { createClient } from "@/lib/supabase/client";
 import { joinTranscriptText } from "@/lib/voice/transcriptJoin";
+import { uploadMeetingAudioChunked } from "@/lib/meetings/chunkedUpload";
 
 /**
  * Live-recording mode for the meeting assistant. Shares the mic-capture
@@ -232,7 +233,7 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
     }
     if (blob.size > MAX_MEETING_AUDIO_BYTES) {
       setErrorMessage(
-        `錄音有 ${(blob.size / 1024 / 1024).toFixed(0)}MB，超過 Supabase 免費方案 50MB 的上限，開會時間可能太長了。`
+        `錄音有 ${(blob.size / 1024 / 1024).toFixed(0)}MB，超過 ${MAX_MEETING_AUDIO_BYTES / 1024 / 1024}MB 上限，這場會議可能太長了。`
       );
       setStatus("error");
       return null;
@@ -248,10 +249,7 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
       if (!createRes.ok) throw new Error(created.error || "建立會議紀錄失敗");
 
       const supabase = createClient();
-      const { error: uploadError } = await supabase.storage
-        .from("meeting-audio")
-        .upload(created.audioPath, blob, { contentType: blob.type });
-      if (uploadError) throw new Error(`上傳錄音失敗：${uploadError.message}`);
+      await uploadMeetingAudioChunked(supabase, created.audioPath, fileExtRef.current, blob, blob.type);
 
       fetch(`/api/meetings/${created.id}/process`, { method: "POST" }).catch(() => {});
 
