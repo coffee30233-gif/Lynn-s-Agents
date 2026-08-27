@@ -1,5 +1,5 @@
 import "server-only";
-import { GoogleGenAI, Type, FileState, ApiError, createUserContent, createPartFromUri } from "@google/genai";
+import { GoogleGenAI, Type, FileState, FinishReason, ApiError, createUserContent, createPartFromUri } from "@google/genai";
 import type { TranscriptSegment, ActionItem } from "@/lib/meetings/queries";
 
 /**
@@ -117,7 +117,13 @@ async function generateContentWithRetry(ai: GoogleGenAI, fileUri: string, fileMi
         config: {
           responseMimeType: "application/json",
           responseSchema: RESPONSE_SCHEMA,
-          maxOutputTokens: 32768,
+          // gemini-3.6-flash's actual max (confirmed via ai.models.get) — a
+          // long meeting's full transcript + summary + action items as JSON
+          // can plausibly need more than the 32768 this used to be capped
+          // at, which was cutting transcripts short (see the finishReason
+          // check below for how that surfaces instead of silently returning
+          // a truncated-but-valid-JSON report).
+          maxOutputTokens: 65536,
         },
       });
     } catch (err) {
@@ -168,7 +174,20 @@ export async function generateMeetingReport(
   console.log(`[meetings] gemini file active: ${file.name}`);
 
   const response = await generateContentWithRetry(ai, file.uri!, file.mimeType ?? mimeType, deadline);
-  console.log("[meetings] gemini generateContent done");
+  const finishReason = response.candidates?.[0]?.finishReason;
+  console.log(`[meetings] gemini generateContent done, finishReason=${finishReason}`);
+
+  // A cut-off-by-length response can still be well-formed, parseable JSON
+  // (the schema-constrained output just stops mid-array) — silently
+  // returning that produced a report that looked successful but had a
+  // visibly incomplete transcript. Surface this as a real failure instead so
+  // it's distinguishable from "the model chose to condense a lot" in
+  // meeting.error, and the user knows retrying (now with a much higher
+  // maxOutputTokens ceiling) is worth doing rather than assuming this is
+  // just how the feature works.
+  if (finishReason === FinishReason.MAX_TOKENS) {
+    throw new Error("回覆內容過長，被截斷了（已提高輸出上限，請重試一次）");
+  }
 
   const text = response.text;
   if (!text) throw new Error("Gemini returned an empty response");
