@@ -8,6 +8,7 @@ export function LiveMeetingView() {
   const router = useRouter();
   const { status, errorMessage, liveTranscript, canFinish, connect, finish } = useMeetingLiveSession();
   const [title, setTitle] = useState("");
+  const [attendees, setAttendees] = useState("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export function LiveMeetingView() {
   const titleLocked = status !== "idle" && status !== "error";
 
   async function handleFinish() {
-    const meetingId = await finish(title);
+    const meetingId = await finish(title, attendees);
     if (meetingId) router.push(`/meetings/${meetingId}`);
   }
 
@@ -34,6 +35,13 @@ export function LiveMeetingView() {
           onChange={(e) => setTitle(e.target.value)}
           disabled={titleLocked}
           placeholder="會議標題，例如：8月產品週會"
+          className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-white/25 focus:outline-none disabled:opacity-50"
+        />
+        <input
+          value={attendees}
+          onChange={(e) => setAttendees(e.target.value)}
+          disabled={titleLocked}
+          placeholder="與會人員（選填），例如：Lynn、John、Mary"
           className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-white/25 focus:outline-none disabled:opacity-50"
         />
 

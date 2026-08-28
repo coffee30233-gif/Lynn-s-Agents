@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { title?: string; fileExt?: string; totalSegments?: number };
+  let body: { title?: string; fileExt?: string; totalSegments?: number; eventAt?: string; attendees?: string };
   try {
     body = await req.json();
   } catch {
@@ -54,7 +54,14 @@ export async function POST(req: NextRequest) {
   // process/route.ts lists and reassembles whatever's under each segment
   // folder, one segment per invocation.
   const audioPath = `${user.id}/${id}`;
-  await createMeeting(supabase, user.id, { id, title, audioPath, totalSegments });
+  await createMeeting(supabase, user.id, {
+    id,
+    title,
+    audioPath,
+    totalSegments,
+    eventAt: body.eventAt?.trim(),
+    attendees: body.attendees?.trim(),
+  });
 
   return NextResponse.json({ id, audioPath });
 }

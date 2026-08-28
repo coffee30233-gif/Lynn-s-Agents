@@ -52,8 +52,11 @@ interface UseMeetingLiveSessionResult {
   connect: () => Promise<void>;
   /** Stops recording, uploads what was captured, kicks off processing, and
    * resolves to the new meeting's id (or null if it failed before a row
-   * even got created — nothing to navigate to in that case). */
-  finish: (title: string) => Promise<string | null>;
+   * even got created — nothing to navigate to in that case). eventAt isn't a
+   * parameter here — it's captured automatically at connect() time (when
+   * the meeting actually started), not asked for like the upload form's
+   * date picker, since a live recording's date/time is just "now". */
+  finish: (title: string, attendees: string) => Promise<string | null>;
 }
 
 // The recorder's own container format doesn't matter beyond this hook —
@@ -86,6 +89,7 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
   const recordedChunksRef = useRef<Blob[]>([]);
   const recorderMimeTypeRef = useRef("");
   const transcriptRef = useRef("");
+  const eventAtRef = useRef("");
 
   function arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = "";
@@ -113,6 +117,7 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
     setCanFinish(false);
     transcriptRef.current = "";
     recordedChunksRef.current = [];
+    eventAtRef.current = new Date().toISOString();
 
     try {
       const tokenRes = await fetch("/api/meetings/live-token", { method: "POST" });
@@ -203,7 +208,7 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
     }
   }, []);
 
-  const finish = useCallback(async (title: string): Promise<string | null> => {
+  const finish = useCallback(async (title: string, attendees: string): Promise<string | null> => {
     setStatus("finishing");
     stopMicAndRecorder();
     try {
@@ -246,7 +251,13 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
       const createRes = await fetch("/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() || "即時會議紀錄", fileExt: "wav", totalSegments: segments.length }),
+        body: JSON.stringify({
+          title: title.trim() || "即時會議紀錄",
+          fileExt: "wav",
+          totalSegments: segments.length,
+          eventAt: eventAtRef.current,
+          attendees: attendees.trim() || undefined,
+        }),
       });
       const created = await createRes.json();
       if (!createRes.ok) throw new Error(created.error || "建立會議紀錄失敗");

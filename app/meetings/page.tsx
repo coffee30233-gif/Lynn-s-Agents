@@ -61,7 +61,7 @@ export default async function MeetingsPage() {
               <div>
                 <p className="text-sm font-medium text-white">{meeting.title}</p>
                 <p className="mt-1 text-xs text-white/30">
-                  {formatTaiwanDateTime(meeting.createdAt)}
+                  {formatTaiwanDateTime(meeting.eventAt ?? meeting.createdAt)}
                 </p>
               </div>
               <span className="text-xs text-white/50">{STATUS_LABEL[meeting.status] ?? meeting.status}</span>

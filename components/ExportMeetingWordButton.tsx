@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Meeting } from "@/lib/meetings/queries";
 import { splitIntoSentenceLines } from "@/lib/meetings/splitSentences";
+import { formatTaiwanDateTime } from "@/lib/date/format";
 
 type SectionKey = "summary" | "chapters" | "actionItems" | "notes" | "transcript";
 
@@ -35,9 +36,18 @@ async function buildAndDownloadDocx(meeting: Meeting, selected: Set<SectionKey>)
   const children: InstanceType<typeof Paragraph>[] = [
     new Paragraph({ text: meeting.title, heading: HeadingLevel.TITLE }),
     new Paragraph({
-      children: [new TextRun({ text: new Date(meeting.createdAt).toLocaleString("zh-Hant-TW"), color: "888888" })],
+      children: [
+        new TextRun({ text: formatTaiwanDateTime(meeting.eventAt ?? meeting.createdAt), color: "888888" }),
+      ],
     }),
   ];
+  if (meeting.attendees) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: `與會人員：${meeting.attendees}`, color: "888888" })],
+      })
+    );
+  }
 
   if (selected.has("summary") && meeting.summary) {
     children.push(new Paragraph({ text: "會議摘要", heading: HeadingLevel.HEADING_1 }));

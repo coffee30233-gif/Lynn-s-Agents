@@ -27,7 +27,10 @@ export default async function MeetingDetailPage({ params }: { params: { meetingI
         </div>
 
         <h1 className="text-2xl font-bold text-white">{meeting.title}</h1>
-        <p className="mt-1 text-xs text-white/30">{formatTaiwanDateTime(meeting.createdAt)}</p>
+        <p className="mt-1 text-xs text-white/30">
+          {formatTaiwanDateTime(meeting.eventAt ?? meeting.createdAt)}
+        </p>
+        {meeting.attendees && <p className="mt-0.5 text-xs text-white/30">與會人員：{meeting.attendees}</p>}
 
         <div className="mt-6">
           <MeetingStatusPoller initialMeeting={meeting} />

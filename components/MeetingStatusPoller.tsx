@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Meeting } from "@/lib/meetings/queries";
 import { ExportMeetingWordButton } from "./ExportMeetingWordButton";
 import { splitIntoSentenceLines } from "@/lib/meetings/splitSentences";
+import { formatTaiwanDateTime } from "@/lib/date/format";
 
 const POLL_INTERVAL_MS = 3000;
 // A hard Vercel timeout kills the request mid-flight with no chance to run a
@@ -120,7 +121,9 @@ export function MeetingStatusPoller({ initialMeeting }: { initialMeeting: Meetin
 /** Plain-text rendering of the whole report, for the copy button — same
  * content and order as what's on screen. */
 function reportAsText(meeting: Meeting): string {
-  const parts = [meeting.title];
+  const header = [meeting.title, formatTaiwanDateTime(meeting.eventAt ?? meeting.createdAt)];
+  if (meeting.attendees) header.push(`與會人員：${meeting.attendees}`);
+  const parts = [header.join("\n")];
   if (meeting.summary) parts.push(`【重點摘要】\n${meeting.summary}`);
   if (meeting.chapters && meeting.chapters.length > 0) {
     parts.push(meeting.chapters.map((c, i) => `${i + 1}. ${c.title}\n${c.description}`).join("\n\n"));

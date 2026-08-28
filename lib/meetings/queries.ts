@@ -15,6 +15,14 @@ export interface Chapter {
 export interface Meeting {
   id: string;
   title: string;
+  /** User-entered, not derived from anything Gemini produces — when the
+   * meeting itself happened, as opposed to createdAt (when it was
+   * uploaded/recorded here). Free-form; the user picks it in the
+   * upload/live-record form, defaulting to "now". */
+  eventAt: string | null;
+  /** Free text, e.g. "Lynn, John, Mary" — no structured per-person data,
+   * purely informational (not fed into the Gemini prompts). */
+  attendees: string | null;
   audioPath: string;
   status: MeetingStatus;
   error: string | null;
@@ -43,6 +51,8 @@ export interface Meeting {
 function mapRow(row: {
   id: string;
   title: string;
+  event_at: string | null;
+  attendees: string | null;
   audio_path: string;
   status: MeetingStatus;
   error: string | null;
@@ -59,6 +69,8 @@ function mapRow(row: {
   return {
     id: row.id,
     title: row.title,
+    eventAt: row.event_at,
+    attendees: row.attendees,
     audioPath: row.audio_path,
     status: row.status,
     error: row.error,
@@ -75,7 +87,7 @@ function mapRow(row: {
 }
 
 const MEETING_COLUMNS =
-  "id, title, audio_path, status, error, transcript, summary, action_items, notes, chapters, total_segments, segments_done, created_at, updated_at";
+  "id, title, event_at, attendees, audio_path, status, error, transcript, summary, action_items, notes, chapters, total_segments, segments_done, created_at, updated_at";
 
 /**
  * Takes an explicit id (the caller generates it with crypto.randomUUID(),
@@ -94,7 +106,14 @@ const MEETING_COLUMNS =
 export async function createMeeting(
   supabase: SupabaseClient,
   userId: string,
-  input: { id: string; title: string; audioPath: string; totalSegments: number }
+  input: {
+    id: string;
+    title: string;
+    audioPath: string;
+    totalSegments: number;
+    eventAt?: string;
+    attendees?: string;
+  }
 ): Promise<string> {
   const { data, error } = await supabase
     .from("meetings")
@@ -104,6 +123,8 @@ export async function createMeeting(
       title: input.title,
       audio_path: input.audioPath,
       total_segments: input.totalSegments,
+      event_at: input.eventAt || null,
+      attendees: input.attendees || null,
     })
     .select("id")
     .single();

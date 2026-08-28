@@ -230,3 +230,11 @@ alter table meetings add column if not exists segments_done int not null default
 -- re-run, safe on a fresh database.
 -- [{ "title": "...", "description": "..." }, ...]
 alter table meetings add column if not exists chapters jsonb;
+
+-- Migration: user-entered meeting metadata (date/time, attendees) — set at
+-- upload/record time alongside the title, purely informational (not fed
+-- into the Gemini prompts). Same rules — safe to re-run, safe on a fresh
+-- database.
+alter table meetings add column if not exists event_at timestamptz;
+-- Free text, e.g. "Lynn, John, Mary" — no structured per-person data.
+alter table meetings add column if not exists attendees text;
