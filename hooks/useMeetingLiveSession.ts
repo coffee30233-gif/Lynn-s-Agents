@@ -131,14 +131,17 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
         config: {
           responseModalities: [Modality.AUDIO],
           systemInstruction: tokenJson.systemInstruction,
-          // Without this, input transcription auto-detects language per
-          // utterance and can drift to the wrong one mid-meeting — hinting
-          // the likely candidates (Taiwan Mandarin, English) keeps it from
-          // wandering into languages nobody in the room is speaking.
-          // Confirmed this doesn't get the config rejected before shipping
-          // it (a bad Live config closes the session immediately — see the
-          // Modality.AUDIO fix above for exactly that failure mode).
-          inputAudioTranscription: { languageCodes: ["cmn-Hant-TW", "en-US"] },
+          // Tried inputAudioTranscription: { languageCodes: ["cmn-Hant-TW", "en-US"] }
+          // to fix language drift, but that produced ZERO transcript output
+          // in real testing (not just wrong-language — nothing at all).
+          // "cmn-Hant-TW" not passing config validation (which would have
+          // closed the session immediately, like the Modality.AUDIO issue
+          // did) doesn't mean it's a language code Live transcription
+          // actually recognizes — it may be silently accepted and then
+          // silently produce nothing. Reverted to the default (no
+          // languageCodes) — auto-detect per utterance, which does produce
+          // output, occasional wrong-language drift and all.
+          inputAudioTranscription: {},
         },
         callbacks: {
           onopen: () => setStatus("connected"),
