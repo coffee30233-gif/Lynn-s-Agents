@@ -35,6 +35,19 @@ export type MeetingLiveStatus = "idle" | "connecting" | "connected" | "finishing
 interface LiveServerMessage {
   serverContent?: {
     inputTranscription?: { text?: string };
+    // "Low latency transcription updated while the user is speaking" per the
+    // @google/genai type docs, as opposed to inputTranscription which only
+    // finalizes once the API's voice-activity detection decides a turn is
+    // complete (i.e. it heard a pause). useLiveSession.ts's coach dialogue
+    // is naturally turn-based (ask, pause, listen for the reply) so that
+    // pause reliably shows up; a meeting is continuous, often-overlapping
+    // speech with no clean per-utterance pause, which may be why a live test
+    // produced literally zero transcript instead of just a choppy one —
+    // turnComplete may rarely or never fire for this kind of audio. Listen
+    // to both; some duplicated text between an interim update and its later
+    // finalized version is a much smaller problem than showing nothing at
+    // all for a feature already labeled best-effort in the UI.
+    interimInputTranscription?: { text?: string };
     turnComplete?: boolean;
   };
 }
@@ -144,9 +157,22 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
           inputAudioTranscription: {},
         },
         callbacks: {
-          onopen: () => setStatus("connected"),
+          onopen: () => {
+            console.log("[useMeetingLiveSession] connected");
+            setStatus("connected");
+          },
           onmessage: (message: LiveServerMessage) => {
-            const text = message.serverContent?.inputTranscription?.text;
+            // Temporary diagnostic — the previous test produced zero live
+            // transcript with no other signal to go on. This makes the next
+            // test's browser console show exactly what Gemini actually sent
+            // (nothing at all vs. messages with no transcription fields vs.
+            // one of the two transcription fields below), instead of another
+            // round of guessing.
+            console.log("[useMeetingLiveSession] message:", JSON.stringify(message).slice(0, 300));
+
+            const text =
+              message.serverContent?.inputTranscription?.text ??
+              message.serverContent?.interimInputTranscription?.text;
             if (text) {
               // Raw += here would leave "你 好" instead of "你好" between
               // fragments (Live API sends them with a leading space, same
@@ -157,10 +183,12 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
             }
           },
           onerror: (e: { message?: string }) => {
+            console.error("[useMeetingLiveSession] error:", e);
             setErrorMessage(e?.message ?? "連線發生錯誤");
             setStatus("error");
           },
-          onclose: () => {
+          onclose: (e: { reason?: string }) => {
+            console.log("[useMeetingLiveSession] closed:", e);
             setStatus((prev) => (prev === "finishing" ? prev : "closed"));
           },
         },

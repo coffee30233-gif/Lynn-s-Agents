@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getMeeting, markProcessing, markDone, markFailed, appendSegmentTranscript } from "@/lib/meetings/queries";
@@ -68,11 +69,27 @@ async function downloadAndReassembleAudio(
 /** Fire-and-forget POST to this same route — starts the next unit of work
  * (the next segment, or the final summarize pass) in a fresh invocation
  * with a fresh 60s budget. Forwards the incoming request's cookies so the
- * self-call passes the same auth.getUser() check. */
+ * self-call passes the same auth.getUser() check.
+ *
+ * This is likely why processing has needed so many manual/auto retries:
+ * Vercel is free to freeze a serverless function's execution environment
+ * the instant its response is sent, with no guarantee that an un-awaited
+ * background fetch (like this one) actually gets sent out before that
+ * freeze happens — it was pure luck whether the self-chain to the next
+ * segment/summarize step actually fired. When it didn't, the row just sat
+ * at "processing" until MeetingStatusPoller's 90s stuck-detection noticed
+ * and re-POSTed from the client instead — which works, but means a silent
+ * ~90s stall (or several, one per broken hop) on top of the actual Gemini
+ * work, on what looked like "it just takes forever". waitUntil() tells
+ * Vercel to keep this function's environment alive until the fetch promise
+ * settles, so the handoff to the next invocation is no longer a coin flip.
+ */
 function triggerNextStep(req: NextRequest) {
-  fetch(req.url, { method: "POST", headers: { cookie: req.headers.get("cookie") ?? "" } }).catch((err) => {
-    console.error("[meetings] failed to trigger next processing step:", err);
-  });
+  waitUntil(
+    fetch(req.url, { method: "POST", headers: { cookie: req.headers.get("cookie") ?? "" } }).catch((err) => {
+      console.error("[meetings] failed to trigger next processing step:", err);
+    })
+  );
 }
 
 export async function POST(req: NextRequest, { params }: { params: { meetingId: string } }) {
