@@ -4,12 +4,13 @@ import { useState } from "react";
 import type { Meeting } from "@/lib/meetings/queries";
 import { splitIntoSentenceLines } from "@/lib/meetings/splitSentences";
 
-type SectionKey = "summary" | "chapters" | "actionItems" | "transcript";
+type SectionKey = "summary" | "chapters" | "actionItems" | "notes" | "transcript";
 
 const SECTION_LABELS: Record<SectionKey, string> = {
   summary: "會議摘要",
   chapters: "章節",
   actionItems: "待辦事項",
+  notes: "其他注意事項",
   transcript: "逐字稿",
 };
 
@@ -21,6 +22,7 @@ function availableSections(meeting: Meeting): SectionKey[] {
   if (meeting.summary) keys.push("summary");
   if (meeting.chapters && meeting.chapters.length > 0) keys.push("chapters");
   if (meeting.actionItems && meeting.actionItems.length > 0) keys.push("actionItems");
+  if (meeting.notes) keys.push("notes");
   if (meeting.transcript) keys.push("transcript");
   return keys;
 }
@@ -43,13 +45,16 @@ async function buildAndDownloadDocx(meeting: Meeting, selected: Set<SectionKey>)
   }
 
   if (selected.has("chapters") && meeting.chapters) {
+    // Extra space after each chapter's description — without it, Word runs
+    // straight into the next chapter's title with nothing to mark the
+    // break between topics.
     meeting.chapters.forEach((chapter, i) => {
       children.push(
         new Paragraph({
           children: [new TextRun({ text: `${i + 1}. ${chapter.title}`, bold: true })],
         })
       );
-      children.push(new Paragraph({ text: chapter.description }));
+      children.push(new Paragraph({ text: chapter.description, spacing: { after: 200 } }));
     });
   }
 
@@ -66,6 +71,11 @@ async function buildAndDownloadDocx(meeting: Meeting, selected: Set<SectionKey>)
         })
       );
     });
+  }
+
+  if (selected.has("notes") && meeting.notes) {
+    children.push(new Paragraph({ text: "其他注意事項", heading: HeadingLevel.HEADING_1 }));
+    children.push(new Paragraph({ text: meeting.notes }));
   }
 
   if (selected.has("transcript") && meeting.transcript) {
