@@ -7,6 +7,11 @@ export interface ActionItem {
   owner: string | null;
 }
 
+export interface Chapter {
+  title: string;
+  description: string;
+}
+
 export interface Meeting {
   id: string;
   title: string;
@@ -20,6 +25,9 @@ export interface Meeting {
   summary: string | null;
   actionItems: ActionItem[] | null;
   notes: string | null;
+  /** Topic-based outline, generated alongside summary/actionItems/notes in
+   * the same summarize call. */
+  chapters: Chapter[] | null;
   /** How many audio segments this recording was split into client-side (see
    * lib/meetings/audioSplit.ts) — 1 for a recording short enough to not need
    * splitting, same code path either way. */
@@ -42,6 +50,7 @@ function mapRow(row: {
   summary: string | null;
   action_items: ActionItem[] | null;
   notes: string | null;
+  chapters: Chapter[] | null;
   total_segments: number;
   segments_done: number;
   created_at: string;
@@ -57,6 +66,7 @@ function mapRow(row: {
     summary: row.summary,
     actionItems: row.action_items,
     notes: row.notes,
+    chapters: row.chapters,
     totalSegments: row.total_segments,
     segmentsDone: row.segments_done,
     createdAt: row.created_at,
@@ -65,7 +75,7 @@ function mapRow(row: {
 }
 
 const MEETING_COLUMNS =
-  "id, title, audio_path, status, error, transcript, summary, action_items, notes, total_segments, segments_done, created_at, updated_at";
+  "id, title, audio_path, status, error, transcript, summary, action_items, notes, chapters, total_segments, segments_done, created_at, updated_at";
 
 /**
  * Takes an explicit id (the caller generates it with crypto.randomUUID(),
@@ -158,7 +168,7 @@ export async function appendSegmentTranscript(
 export async function markDone(
   supabase: SupabaseClient,
   meetingId: string,
-  summary: { summary: string; actionItems: ActionItem[]; notes: string }
+  summary: { summary: string; actionItems: ActionItem[]; notes: string; chapters: Chapter[] }
 ): Promise<void> {
   const { error } = await supabase
     .from("meetings")
@@ -167,6 +177,7 @@ export async function markDone(
       summary: summary.summary,
       action_items: summary.actionItems,
       notes: summary.notes,
+      chapters: summary.chapters,
       updated_at: new Date().toISOString(),
     })
     .eq("id", meetingId);

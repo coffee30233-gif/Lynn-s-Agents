@@ -194,6 +194,10 @@ Produce:
    null — do not guess, and never invent a placeholder name.
 3. Any other notable context, open questions, or decisions that don't belong
    in the action items list.
+4. A chapter outline: break the meeting into its major topics/sections, in
+   the order they were discussed (like chapters in a podcast or video), each
+   with a short title and a one-sentence description of what was covered.
+   Aim for genuinely distinct topics, not one chapter per minor remark.
 
 Write your response in the same language as the transcript. Respond only in
 the requested JSON structure.
@@ -217,14 +221,31 @@ const SUMMARIZE_SCHEMA = {
       },
     },
     notes: { type: Type.STRING },
+    chapters: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          description: { type: Type.STRING },
+        },
+        required: ["title", "description"],
+      },
+    },
   },
-  required: ["summary", "actionItems", "notes"],
+  required: ["summary", "actionItems", "notes", "chapters"],
 };
+
+export interface Chapter {
+  title: string;
+  description: string;
+}
 
 export interface MeetingSummary {
   summary: string;
   actionItems: ActionItem[];
   notes: string;
+  chapters: Chapter[];
 }
 
 /** Plain text in, plain text out — no Files API, no audio, so this is fast
@@ -252,12 +273,18 @@ export async function summarizeTranscript(
   );
 
   const parsed = JSON.parse(extractJsonOrThrow(response)) as Partial<MeetingSummary>;
-  if (typeof parsed.summary !== "string" || !Array.isArray(parsed.actionItems) || typeof parsed.notes !== "string") {
+  if (
+    typeof parsed.summary !== "string" ||
+    !Array.isArray(parsed.actionItems) ||
+    typeof parsed.notes !== "string" ||
+    !Array.isArray(parsed.chapters)
+  ) {
     throw new Error("Gemini's response was missing expected fields");
   }
   return {
     summary: parsed.summary,
     actionItems: parsed.actionItems.map((item) => ({ text: item.text, owner: item.owner ?? null })),
     notes: parsed.notes,
+    chapters: parsed.chapters,
   };
 }

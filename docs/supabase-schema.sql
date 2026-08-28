@@ -223,3 +223,10 @@ create policy "meeting_audio_delete_own" on storage.objects for delete using (
 -- through this same path with total_segments = 1 — no special-casing.
 alter table meetings add column if not exists total_segments int not null default 1;
 alter table meetings add column if not exists segments_done int not null default 0;
+
+-- Migration: meeting chapters ("章節" — a topic-based outline, generated
+-- alongside summary/actionItems/notes in the same fast text-only
+-- summarize call, not a separate Gemini call). Same rules — safe to
+-- re-run, safe on a fresh database.
+-- [{ "title": "...", "description": "..." }, ...]
+alter table meetings add column if not exists chapters jsonb;

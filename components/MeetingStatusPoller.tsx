@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Meeting } from "@/lib/meetings/queries";
+import { ExportMeetingWordButton } from "./ExportMeetingWordButton";
 
 const POLL_INTERVAL_MS = 3000;
 // A hard Vercel timeout kills the request mid-flight with no chance to run a
@@ -90,6 +91,11 @@ export function MeetingStatusPoller({ initialMeeting }: { initialMeeting: Meetin
 function reportAsText(meeting: Meeting): string {
   const parts = [meeting.title];
   if (meeting.summary) parts.push(`【重點摘要】\n${meeting.summary}`);
+  if (meeting.chapters && meeting.chapters.length > 0) {
+    parts.push(
+      `【章節】\n${meeting.chapters.map((c, i) => `${i + 1}. ${c.title}\n${c.description}`).join("\n\n")}`
+    );
+  }
   if (meeting.actionItems && meeting.actionItems.length > 0) {
     parts.push(
       `【待辦事項】\n${meeting.actionItems.map((item) => `• ${item.text}${item.owner ? `（${item.owner}）` : ""}`).join("\n")}`
@@ -130,14 +136,31 @@ function MeetingReport({ meeting }: { meeting: Meeting }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <CopyButton getText={() => reportAsText(meeting)} />
+        <ExportMeetingWordButton meeting={meeting} />
       </div>
 
       {meeting.summary && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
           <p className="mb-2 text-sm font-semibold text-white">📋 重點摘要</p>
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/90">{meeting.summary}</p>
+        </div>
+      )}
+
+      {meeting.chapters && meeting.chapters.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <p className="mb-2 text-sm font-semibold text-white">🗂️ 章節</p>
+          <ol className="flex flex-col gap-2.5">
+            {meeting.chapters.map((chapter, i) => (
+              <li key={i} className="text-[15px] leading-relaxed">
+                <span className="font-medium text-white/90">
+                  {i + 1}. {chapter.title}
+                </span>
+                <p className="mt-0.5 text-sm text-white/60">{chapter.description}</p>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 
