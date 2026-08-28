@@ -105,25 +105,14 @@ export async function POST(req: NextRequest, { params }: { params: { meetingId: 
 
       const folderPath = `${meeting.audioPath}/${segmentFolderName(segmentIndex)}`;
       const { blob, mimeType } = await downloadAndReassembleAudio(supabase, folderPath);
-      const segmentTranscript = await transcribeAudioSegment(blob, mimeType, meeting.title, deadline);
+      const segmentText = await transcribeAudioSegment(blob, mimeType, meeting.title, deadline);
 
-      // Only prefix labels when there's more than one segment — a
-      // single-segment recording (the common case) stays exactly as before,
-      // no "第1段 " clutter. Multiple segments have no cross-segment speaker
-      // continuity (Gemini never sees them together), so the prefix makes
-      // that visible instead of implying a false match — MeetingStatusPoller's
-      // speaker-rename feature is how the user reconciles labels by hand.
-      const labeled =
-        meeting.totalSegments > 1
-          ? segmentTranscript.map((seg) => ({ ...seg, speaker: `第${segmentIndex + 1}段 ${seg.speaker}` }))
-          : segmentTranscript;
-
-      await appendSegmentTranscript(supabase, meeting.id, labeled);
+      await appendSegmentTranscript(supabase, meeting.id, segmentText);
       console.log(`[meetings] ${meeting.id}: segment ${segmentIndex + 1}/${meeting.totalSegments} done`);
       triggerNextStep(req);
     } else {
       console.log(`[meetings] ${meeting.id}: all segments transcribed, summarizing`);
-      const summary = await summarizeTranscript(meeting.transcript ?? [], deadline);
+      const summary = await summarizeTranscript(meeting.transcript ?? "", deadline);
       await markDone(supabase, meeting.id, summary);
       console.log(`[meetings] ${meeting.id}: done`);
     }

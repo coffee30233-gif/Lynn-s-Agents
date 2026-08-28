@@ -1,10 +1,10 @@
 // Standalone check for lib/meetings/gemini.ts's two-call pipeline:
 // transcribeAudioSegment() (Files API upload -> poll ACTIVE -> generateContent
-// with a transcript-only JSON schema) then summarizeTranscript() (fast,
-// text-only call over the result) — run directly against the real Gemini
-// API with a short local audio file, independent of Next.js/Supabase/auth,
-// so a failure here points at the Gemini call itself rather than anything
-// else in the request chain.
+// with a plain-text transcript schema, no speaker diarization) then
+// summarizeTranscript() (fast, text-only call over the result) — run
+// directly against the real Gemini API with a short local audio file,
+// independent of Next.js/Supabase/auth, so a failure here points at the
+// Gemini call itself rather than anything else in the request chain.
 //
 // Usage: node scripts/test-meeting-gemini.mjs <path-to-audio-file>
 // Needs GEMINI_API_KEY in the environment (e.g. `set -a; . .env.local; set +a`
@@ -41,23 +41,14 @@ const MODEL_ID = "gemini-3.6-flash";
 
 const TRANSCRIBE_SCHEMA = {
   type: Type.OBJECT,
-  properties: {
-    transcript: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: { speaker: { type: Type.STRING }, text: { type: Type.STRING } },
-        required: ["speaker", "text"],
-      },
-    },
-  },
+  properties: { transcript: { type: Type.STRING } },
   required: ["transcript"],
 };
 
 const TRANSCRIBE_PROMPT = `Transcribe this audio clip in full, covering it from start to end — do not
-condense or skip anything, only clean up filler words (um/uh). Label
-speakers "Speaker A", "Speaker B" etc. by voice, consistently. Respond only
-in the requested JSON structure.`;
+condense or skip anything, only clean up filler words (um/uh). Do not label
+or attribute lines to speakers — just the words that were said, as plain
+continuous text. Respond only in the requested JSON structure.`;
 
 const SUMMARIZE_SCHEMA = {
   type: Type.OBJECT,
@@ -113,15 +104,14 @@ async function main() {
   console.log(`[test] transcribe done (${elapsed(t3)}), finishReason=${transcribeResponse.candidates?.[0]?.finishReason}`);
   const transcript = JSON.parse(transcribeResponse.text).transcript;
   console.log("[test] transcript:");
-  console.log(JSON.stringify(transcript, null, 2));
+  console.log(transcript);
 
   const t4 = Date.now();
-  const transcriptText = transcript.map((seg) => `${seg.speaker}: ${seg.text}`).join("\n");
   const summarizeResponse = await ai.models.generateContent({
     model: MODEL_ID,
     contents: [
       createUserContent([
-        `Summarize this transcript: action items (owner null if not stated), and any other notes. Respond only in the requested JSON structure.\n\nTRANSCRIPT:\n${transcriptText}`,
+        `Summarize this transcript: action items (owner null if not stated, never a placeholder), and any other notes. Respond only in the requested JSON structure.\n\nTRANSCRIPT:\n${transcript}`,
       ]),
     ],
     config: { responseMimeType: "application/json", responseSchema: SUMMARIZE_SCHEMA, maxOutputTokens: 65536 },

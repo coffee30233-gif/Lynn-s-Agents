@@ -166,7 +166,8 @@ create table if not exists meetings (
   status       text not null default 'uploaded'
                check (status in ('uploaded', 'processing', 'done', 'failed')),
   error        text,
-  -- [{ "speaker": "Speaker A" | a stated real name, "text": "..." }, ...]
+  -- Plain text (a bare JSON string in this jsonb column, not an array) — no
+  -- speaker diarization; see lib/meetings/gemini.ts for why that was dropped.
   transcript   jsonb,
   summary      text,
   -- [{ "text": "...", "owner": string | null }, ...]

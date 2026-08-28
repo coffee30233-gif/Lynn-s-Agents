@@ -1,24 +1,18 @@
 // Splits a recording into fixed-length, independently-decodable WAV
 // segments, entirely client-side (Web Audio API — no ffmpeg.wasm or other
 // dependency needed). Each segment is transcribed by its own Gemini call
-// with its own fresh 60s Vercel budget (see app/api/meetings/[meetingId]/process/route.ts) —
-// a single call generating a full transcript for a 1+ hour recording was
-// reliably exceeding that cap; ~10 minutes of audio comfortably doesn't.
-//
-// This is a real audio-level split (unlike lib/meetings/chunkedUpload.ts's
-// byte-level split, which exists purely to get under Supabase's per-object
-// Storage cap and gets losslessly rejoined before Gemini ever sees it) — a
-// genuine trade-off, since Gemini has no way to keep "Speaker A" meaning the
-// same person across two segments it never sees together. There's no fix
-// for that at the transcription layer; MeetingStatusPoller's speaker-rename
-// feature is the intended way to reconcile labels across segments by hand
-// after reading through it.
-const SEGMENT_SECONDS = 10 * 60;
+// with its own fresh 60s Vercel budget (see app/api/meetings/[meetingId]/process/route.ts).
+// Started at 10 minutes; that was still occasionally exceeding the 60s cap
+// in practice (per-call time doesn't scale perfectly predictably — some
+// segments legitimately take longer to transcribe than others), so this is
+// more conservative. Smaller segments mean more total Gemini calls for the
+// same recording, but each one is safer.
+const SEGMENT_SECONDS = 5 * 60;
 // Downsampled to this rate regardless of the source file's — plenty for
 // speech intelligibility (matches the rate used elsewhere for voice in this
-// app), and keeps each segment's WAV small: 10 minutes mono 16-bit at 16kHz
-// is ~19MB, comfortably under chunkedUpload.ts's 45MB per-object threshold
-// even before any of that byte-level splitting would kick in.
+// app), and keeps each segment's WAV small: 5 minutes mono 16-bit at 16kHz
+// is under 10MB, comfortably under chunkedUpload.ts's 45MB per-object
+// threshold even before any of that byte-level splitting would kick in.
 const TARGET_SAMPLE_RATE = 16000;
 
 export async function splitAudioIntoSegments(file: Blob): Promise<Blob[]> {

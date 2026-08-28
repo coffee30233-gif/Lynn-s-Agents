@@ -2,11 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type MeetingStatus = "uploaded" | "processing" | "done" | "failed";
 
-export interface TranscriptSegment {
-  speaker: string;
-  text: string;
-}
-
 export interface ActionItem {
   text: string;
   owner: string | null;
@@ -18,7 +13,10 @@ export interface Meeting {
   audioPath: string;
   status: MeetingStatus;
   error: string | null;
-  transcript: TranscriptSegment[] | null;
+  /** Plain text, no speaker attribution — see lib/meetings/gemini.ts for why
+   * diarization was dropped. Segments are appended to this with a blank
+   * line between them as each finishes (appendSegmentTranscript). */
+  transcript: string | null;
   summary: string | null;
   actionItems: ActionItem[] | null;
   notes: string | null;
@@ -40,7 +38,7 @@ function mapRow(row: {
   audio_path: string;
   status: MeetingStatus;
   error: string | null;
-  transcript: TranscriptSegment[] | null;
+  transcript: string | null;
   summary: string | null;
   action_items: ActionItem[] | null;
   notes: string | null;
@@ -128,17 +126,17 @@ export async function markProcessing(supabase: SupabaseClient, meetingId: string
 }
 
 /**
- * Appends one segment's transcript to whatever's already accumulated and
- * bumps segments_done — a plain read-modify-write (no concurrent writers
- * are possible for one meeting: the pipeline is strictly self-chained one
- * step at a time, see process/route.ts) rather than an atomic jsonb
- * concat, since there's no RPC/raw-SQL infrastructure in this codebase to
- * do that in one round trip.
+ * Appends one segment's transcript text to whatever's already accumulated
+ * and bumps segments_done — a plain read-modify-write (no concurrent
+ * writers are possible for one meeting: the pipeline is strictly
+ * self-chained one step at a time, see process/route.ts) rather than an
+ * atomic concat, since there's no RPC/raw-SQL infrastructure in this
+ * codebase to do that in one round trip.
  */
 export async function appendSegmentTranscript(
   supabase: SupabaseClient,
   meetingId: string,
-  segmentTranscript: TranscriptSegment[]
+  segmentText: string
 ): Promise<void> {
   const meeting = await getMeeting(supabase, meetingId);
   if (!meeting) throw new Error("Meeting not found");
@@ -146,7 +144,7 @@ export async function appendSegmentTranscript(
   const { error } = await supabase
     .from("meetings")
     .update({
-      transcript: [...(meeting.transcript ?? []), ...segmentTranscript],
+      transcript: meeting.transcript ? `${meeting.transcript}\n\n${segmentText}` : segmentText,
       segments_done: meeting.segmentsDone + 1,
       updated_at: new Date().toISOString(),
     })
@@ -181,20 +179,6 @@ export async function markFailed(supabase: SupabaseClient, meetingId: string, me
     .update({ status: "failed", error: message, updated_at: new Date().toISOString() })
     .eq("id", meetingId);
   if (error) throw new Error(`Failed to mark meeting failed: ${error.message}`);
-}
-
-/** User-driven edit (renaming a speaker after reading the transcript) — the
- * only field MeetingStatusPoller's PATCH route lets the user change. */
-export async function updateTranscript(
-  supabase: SupabaseClient,
-  meetingId: string,
-  transcript: TranscriptSegment[]
-): Promise<void> {
-  const { error } = await supabase
-    .from("meetings")
-    .update({ transcript, updated_at: new Date().toISOString() })
-    .eq("id", meetingId);
-  if (error) throw new Error(`Failed to update transcript: ${error.message}`);
 }
 
 export async function deleteMeeting(supabase: SupabaseClient, meetingId: string): Promise<void> {

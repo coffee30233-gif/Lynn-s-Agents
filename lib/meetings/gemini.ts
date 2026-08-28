@@ -9,7 +9,7 @@ import {
   createPartFromUri,
   type GenerateContentResponse,
 } from "@google/genai";
-import type { TranscriptSegment, ActionItem } from "@/lib/meetings/queries";
+import type { ActionItem } from "@/lib/meetings/queries";
 
 /**
  * Meeting transcription/summarization is low-frequency and high-stakes per
@@ -36,13 +36,21 @@ const MEETING_MODEL_ID = "gemini-3.6-flash";
  * requested alongside it (JSON is generated in schema order, transcript
  * first, so removing summary from that same call barely moves the needle).
  * Split into two calls instead: transcribeAudioSegment() does ONLY the
- * audio-to-text work for one (short, ~10 minute) segment of the recording
- * — see lib/meetings/audioSplit.ts and app/api/meetings/[meetingId]/process/route.ts
+ * audio-to-text work for one (short) segment of the recording — see
+ * lib/meetings/audioSplit.ts and app/api/meetings/[meetingId]/process/route.ts
  * for how segments are produced and orchestrated one invocation at a time —
  * and summarizeTranscript() is a fast, text-only call (no Files API, no
  * audio) over the already-assembled full transcript once every segment is
  * done. Each piece comfortably fits its own 60s budget even when the whole
  * pipeline together wouldn't have.
+ *
+ * No speaker diarization — this used to label speakers "Speaker A/B/C", but
+ * that only ever holds within one segment (Gemini never hears two segments
+ * together, so there's no way to know "Speaker A" in segment 2 is the same
+ * person as "Speaker A" in segment 1), which needed a manual rename step to
+ * fix up and complicated the output for little payoff. Dropped per request —
+ * the transcript is now plain text, and action items don't carry a speaker
+ * attribution unless a real name was actually said.
  */
 
 function getClient(): GoogleGenAI {
@@ -90,11 +98,10 @@ async function generateContentWithRetry(
 
 /** Extracts the JSON text from a response, checking finishReason first — a
  * length-truncated response can still be well-formed, parseable JSON (the
- * schema-constrained output just stops mid-array/mid-object), so silently
+ * schema-constrained output just stops mid-string/mid-object), so silently
  * parsing it would produce a result that looks successful but is quietly
- * incomplete. Surfaced as a real failure instead so a retry (now with a much
- * higher maxOutputTokens ceiling, and a much smaller per-call scope than the
- * original single-call design) is known to be worth doing. */
+ * incomplete. Surfaced as a real failure instead so a retry is known to be
+ * worth doing. */
 function extractJsonOrThrow(response: GenerateContentResponse): string {
   const finishReason = response.candidates?.[0]?.finishReason;
   console.log(`[meetings] generateContent done, finishReason=${finishReason}`);
@@ -110,41 +117,24 @@ const TRANSCRIBE_PROMPT = `You are transcribing one segment of a longer recorded
 are only hearing this segment, not the full recording — segments are stitched
 together afterward by the calling application, not by you.
 
-Speaker labels: identify distinct speakers by voice and label them "Speaker A",
-"Speaker B", "Speaker C", etc., in order of first appearance WITHIN THIS
-SEGMENT. Keep each label consistent for the same voice throughout this
-segment. If — and only if — a speaker's real name is explicitly said in this
-segment (someone addresses them by name, or they introduce themselves), use
-that name instead of the generic label for that speaker from that point on
-in this segment. Never guess or infer a name that isn't actually spoken.
-
 Language: transcribe in the language actually spoken (do not translate).
 
-Produce a transcript as speaker-attributed segments, in chronological order,
-covering this ENTIRE audio segment from start to end — do not summarize,
-condense, or skip any part of it, and do not stop early. The only cleanup
-allowed is removing pure disfluencies (um/uh, stutters, exact word
-repetitions) — every topic, sentence, and exchange that actually happened
-must be represented. If you are tempted to shorten this because the segment
-is long, don't: a long segment should produce a long transcript, not a
-shorter one.
+Produce a plain-text transcript of what was said, covering this ENTIRE audio
+segment from start to end — do not summarize, condense, or skip any part of
+it, and do not stop early. The only cleanup allowed is removing pure
+disfluencies (um/uh, stutters, exact word repetitions) — every topic,
+sentence, and exchange that actually happened must be represented. If you
+are tempted to shorten this because the segment is long, don't: a long
+segment should produce a long transcript, not a shorter one. Do not label or
+attribute lines to speakers — just the words that were said, as continuous
+text (paragraph breaks where natural are fine).
 
 Respond only in the requested JSON structure.`;
 
 const TRANSCRIBE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    transcript: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          speaker: { type: Type.STRING },
-          text: { type: Type.STRING },
-        },
-        required: ["speaker", "text"],
-      },
-    },
+    transcript: { type: Type.STRING },
   },
   required: ["transcript"],
 };
@@ -157,7 +147,7 @@ export async function transcribeAudioSegment(
    * (Vercel's 60s cap) — used only to decide whether a transient-error retry
    * has any real chance of finishing, not enforced as a hard cutoff here. */
   deadline: number = Date.now() + 55_000
-): Promise<TranscriptSegment[]> {
+): Promise<string> {
   const ai = getClient();
 
   const uploaded = await ai.files.upload({ file: audio, config: { mimeType, displayName: title } });
@@ -189,22 +179,19 @@ export async function transcribeAudioSegment(
   );
 
   const parsed = JSON.parse(extractJsonOrThrow(response)) as { transcript?: unknown };
-  if (!Array.isArray(parsed.transcript)) throw new Error("Gemini's response was missing the transcript field");
-  return parsed.transcript as TranscriptSegment[];
+  if (typeof parsed.transcript !== "string") throw new Error("Gemini's response was missing the transcript field");
+  return parsed.transcript;
 }
 
 const SUMMARIZE_PROMPT = `Below is the full transcript of a recorded meeting or conversation (it may have
 been transcribed in several segments and stitched together — segment
 boundaries carry no meaning, just read it as one continuous conversation).
-Speaker labels may include a "第N段 " prefix marking which segment a label
-came from — the same real person may appear under different-looking labels
-in different segments, since segments were transcribed independently.
 
 Produce:
 1. A concise summary of what was discussed and any decisions made.
 2. A list of concrete action items mentioned. Include an "owner" only if a
-   specific person is explicitly stated or unambiguously implied as
-   responsible; otherwise leave it null — do not guess.
+   specific person is explicitly named as responsible; otherwise leave it
+   null — do not guess, and never invent a placeholder name.
 3. Any other notable context, open questions, or decisions that don't belong
    in the action items list.
 
@@ -245,17 +232,16 @@ export interface MeetingSummary {
  * to transcribe, and isn't expected to need the same retry-budget treatment
  * transcription needed, but goes through the same helper for consistency. */
 export async function summarizeTranscript(
-  transcript: TranscriptSegment[],
+  transcript: string,
   deadline: number = Date.now() + 55_000
 ): Promise<MeetingSummary> {
   const ai = getClient();
-  const transcriptText = transcript.map((seg) => `${seg.speaker}: ${seg.text}`).join("\n");
 
   const response = await generateContentWithRetry(
     () =>
       ai.models.generateContent({
         model: MEETING_MODEL_ID,
-        contents: [createUserContent([SUMMARIZE_PROMPT + transcriptText])],
+        contents: [createUserContent([SUMMARIZE_PROMPT + transcript])],
         config: {
           responseMimeType: "application/json",
           responseSchema: SUMMARIZE_SCHEMA,
