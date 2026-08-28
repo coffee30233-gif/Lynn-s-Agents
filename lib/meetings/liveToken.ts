@@ -2,37 +2,35 @@ import "server-only";
 import { GoogleGenAI, Modality } from "@google/genai";
 
 /**
- * Same Live API mechanism as lib/voice/liveToken.ts (the English coach), but
- * for a meeting listener instead of a conversational partner: no character,
- * no skill.
+ * Originally reused the conversational Live model (gemini-3.1-flash-live-
+ * preview, same as lib/voice/liveToken.ts's English coach) with a "stay
+ * silent, never respond" system instruction, on the theory that a meeting
+ * listener is just a conversational session that never talks. In real
+ * testing this reliably connected, streamed audio fine, and got periodic
+ * sessionResumptionUpdate heartbeats — but never once produced a
+ * serverContent.inputTranscription or interimInputTranscription message,
+ * confirmed on real human speech, not just a synthetic-audio test artifact.
+ * That symptom exactly matches a known open issue other developers have hit
+ * with this same conversational-model + inputAudioTranscription combination
+ * (googleapis/js-genai#1212, and a Google AI Developer Forum thread) —
+ * unresolved on Google's end, not something fixable from this app's config.
  *
- * Originally tried Modality.TEXT here (a meeting isn't a conversation with
- * the model — it must never speak up over real participants, and TEXT-only
- * output means there's no synthesized speech to accidentally play back at
- * all). In practice the session closed almost immediately after connecting,
- * which points at this specific live-preview model only really supporting
- * AUDIO output — so this uses Modality.AUDIO instead, the modality already
- * proven working for the coach on this exact model, and the audio chunks
- * that come back are simply never wired to a player in
- * hooks/useMeetingLiveSession.ts (unlike the coach's LiveAudioPlayer). Same
- * end result — nothing audible plays — reached a more conservative way.
- *
- * Input transcription (what's picked up by the mic) arrives regardless of
- * the model's own output modality — see hooks/useLiveSession.ts, which reads
- * content.inputTranscription.text without the config explicitly requesting
- * it, so the same is expected to hold here without extra config.
+ * Google ships a separate model built specifically for this:
+ * gemini-3.5-transcribe-live, "a dedicated, low-latency speech recognition
+ * pipeline rather than a conversational agent" (its own docs' wording) —
+ * the right tool for a meeting listener that should never talk in the first
+ * place, not a conversational model instructed into silence. It responds
+ * with Modality.TEXT (this is a transcription model, not a voice one, so
+ * there's no spoken audio to ever worry about accidentally playing back),
+ * and no system instruction — it isn't a character to direct, just a
+ * transcriber.
  */
 
-const LIVE_MODEL_ID = "gemini-3.1-flash-live-preview";
-
-const SYSTEM_INSTRUCTION = `You are a silent meeting transcription listener. You are not a participant —
-never respond, comment, greet, ask questions, or narrate. Produce no text
-output at all. Your only function is listening.`;
+const LIVE_MODEL_ID = "gemini-3.5-transcribe-live";
 
 export interface MeetingLiveToken {
   token: string;
   model: string;
-  systemInstruction: string;
 }
 
 export async function createMeetingLiveToken(): Promise<MeetingLiveToken> {
@@ -50,7 +48,7 @@ export async function createMeetingLiveToken(): Promise<MeetingLiveToken> {
       liveConnectConstraints: {
         model: LIVE_MODEL_ID,
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [Modality.TEXT],
         },
       },
     },
@@ -60,5 +58,5 @@ export async function createMeetingLiveToken(): Promise<MeetingLiveToken> {
     throw new Error("createMeetingLiveToken: Gemini did not return a token");
   }
 
-  return { token: token.name, model: LIVE_MODEL_ID, systemInstruction: SYSTEM_INSTRUCTION };
+  return { token: token.name, model: LIVE_MODEL_ID };
 }

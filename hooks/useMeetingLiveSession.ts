@@ -19,13 +19,11 @@ import { segmentFolderName } from "@/lib/meetings/segmentPath";
  * exact same pipeline the file-upload form uses (POST /api/meetings ->
  * Storage upload -> POST .../process) instead of saving chat messages.
  *
- * Connects with Modality.AUDIO (see lib/meetings/liveToken.ts for why —
- * TEXT-only closed the session almost immediately in testing), but
- * deliberately never wires the received audio chunks to a player the way
- * hooks/useLiveSession.ts does — a meeting assistant audibly interrupting a
- * real meeting would be much worse than staying silent, and the system
- * instruction already tells it not to speak in the first place, so any
- * audio that does come back is just dropped.
+ * Connects to gemini-3.5-transcribe-live (see lib/meetings/liveToken.ts for
+ * why this is a different, dedicated transcription model rather than the
+ * conversational one hooks/useLiveSession.ts uses) with Modality.TEXT — the
+ * model's own output IS the transcript text, not synthesized speech, so
+ * there's no audio-playback concern to manage here at all.
  */
 
 const INPUT_SAMPLE_RATE = 16000;
@@ -35,19 +33,6 @@ export type MeetingLiveStatus = "idle" | "connecting" | "connected" | "finishing
 interface LiveServerMessage {
   serverContent?: {
     inputTranscription?: { text?: string };
-    // "Low latency transcription updated while the user is speaking" per the
-    // @google/genai type docs, as opposed to inputTranscription which only
-    // finalizes once the API's voice-activity detection decides a turn is
-    // complete (i.e. it heard a pause). useLiveSession.ts's coach dialogue
-    // is naturally turn-based (ask, pause, listen for the reply) so that
-    // pause reliably shows up; a meeting is continuous, often-overlapping
-    // speech with no clean per-utterance pause, which may be why a live test
-    // produced literally zero transcript instead of just a choppy one —
-    // turnComplete may rarely or never fire for this kind of audio. Listen
-    // to both; some duplicated text between an interim update and its later
-    // finalized version is a much smaller problem than showing nothing at
-    // all for a feature already labeled best-effort in the UI.
-    interimInputTranscription?: { text?: string };
     turnComplete?: boolean;
   };
 }
@@ -137,31 +122,19 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
       const tokenJson = await tokenRes.json();
       if (!tokenRes.ok) throw new Error(tokenJson?.error ?? "無法取得連線憑證");
 
-      // The SDK itself warns (console) that ephemeral-token support is
-      // v1alpha-only and to set this before connecting — this was missing
-      // here. The last real test's console showed setupComplete plus a
-      // stream of sessionResumptionUpdate heartbeats and then a close, with
-      // zero serverContent the entire time — consistent with the client
-      // never actually entering a real v1alpha live session despite
-      // connecting with a v1alpha-minted token.
+      // Needed for ephemeral-token connections per the SDK's own console
+      // warning — must match the v1alpha surface the token was minted on.
       const ai = new GoogleGenAI({ apiKey: tokenJson.token, httpOptions: { apiVersion: "v1alpha" } });
 
       const session = await ai.live.connect({
         model: tokenJson.model,
         config: {
-          responseModalities: [Modality.AUDIO],
-          systemInstruction: tokenJson.systemInstruction,
-          // Tried inputAudioTranscription: { languageCodes: ["cmn-Hant-TW", "en-US"] }
-          // to fix language drift, but that produced ZERO transcript output
-          // in real testing (not just wrong-language — nothing at all).
-          // "cmn-Hant-TW" not passing config validation (which would have
-          // closed the session immediately, like the Modality.AUDIO issue
-          // did) doesn't mean it's a language code Live transcription
-          // actually recognizes — it may be silently accepted and then
-          // silently produce nothing. Reverted to the default (no
-          // languageCodes) — auto-detect per utterance, which does produce
-          // output, occasional wrong-language drift and all.
-          inputAudioTranscription: {},
+          // gemini-3.5-transcribe-live is a dedicated transcription model —
+          // it responds with TEXT (the transcript itself), not synthesized
+          // speech, so there's no "did we accidentally play audio back"
+          // concern the way there was with the conversational model.
+          responseModalities: [Modality.TEXT],
+          inputAudioTranscription: { languageCodes: [] }, // [] = auto-detect
         },
         callbacks: {
           onopen: () => {
@@ -169,17 +142,19 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
             setStatus("connected");
           },
           onmessage: (message: LiveServerMessage) => {
-            // Temporary diagnostic — the previous test produced zero live
-            // transcript with no other signal to go on. This makes the next
-            // test's browser console show exactly what Gemini actually sent
-            // (nothing at all vs. messages with no transcription fields vs.
-            // one of the two transcription fields below), instead of another
-            // round of guessing.
             console.log("[useMeetingLiveSession] message:", JSON.stringify(message).slice(0, 300));
 
-            const text =
-              message.serverContent?.inputTranscription?.text ??
-              message.serverContent?.interimInputTranscription?.text;
+            // Only the finalized field, not interimInputTranscription — that
+            // one streams speculative, still-changing partial guesses while
+            // a phrase is mid-utterance, and appending each partial as if it
+            // were new text would duplicate/garble the transcript (e.g.
+            // interim "hello wor" then final "hello world" naively appended
+            // becomes "hello wor hello world"). A speculative live preview
+            // while speaking would need to REPLACE, not append — not worth
+            // the complexity for a feature that's explicitly best-effort;
+            // the accurate transcript always comes from the batch pass after
+            // the meeting ends regardless.
+            const text = message.serverContent?.inputTranscription?.text;
             if (text) {
               // Raw += here would leave "你 好" instead of "你好" between
               // fragments (Live API sends them with a leading space, same
