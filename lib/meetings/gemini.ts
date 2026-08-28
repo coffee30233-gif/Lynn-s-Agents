@@ -120,30 +120,73 @@ together afterward by the calling application, not by you.
 
 Language: transcribe in the language actually spoken (do not translate).
 
-Produce a plain-text transcript of what was said, covering this ENTIRE audio
-segment from start to end — do not summarize, condense, or skip any part of
-it, and do not stop early. The only cleanup allowed is removing pure
+Break what was said into natural sentences/utterances, covering this ENTIRE
+audio segment from start to end — do not summarize, condense, or skip any
+part of it, and do not stop early. The only cleanup allowed is removing pure
 disfluencies (um/uh, stutters, exact word repetitions) — every topic,
 sentence, and exchange that actually happened must be represented. If you
 are tempted to shorten this because the segment is long, don't: a long
-segment should produce a long transcript, not a shorter one. Do not label or
-attribute lines to speakers — just the words that were said, as continuous
-text (paragraph breaks where natural are fine).
+segment should produce many lines, not fewer. Do not label or attribute
+lines to speakers — just the words that were said.
+
+For each line, also report "time": the timestamp in this AUDIO SEGMENT
+(not clock time, not the original recording if this is one of several
+segments — just how far into the audio you were given, starting at 0:00)
+when that line began being said, formatted "MM:SS" (or "H:MM:SS" if the
+segment somehow runs past an hour).
 
 Respond only in the requested JSON structure.`;
 
 const TRANSCRIBE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    transcript: { type: Type.STRING },
+    lines: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          time: { type: Type.STRING },
+          text: { type: Type.STRING },
+        },
+        required: ["time", "text"],
+      },
+    },
   },
-  required: ["transcript"],
+  required: ["lines"],
 };
+
+/** "MM:SS" or "H:MM:SS" -> total seconds. Returns 0 for anything that
+ * doesn't parse as plain digits/colons rather than throwing — a malformed
+ * timestamp from the model shouldn't take down the whole segment's
+ * transcript, just that one line's offset. */
+function parseTimestamp(time: string): number {
+  const parts = time.split(":").map((p) => Number(p));
+  if (parts.some((p) => !Number.isFinite(p))) return 0;
+  if (parts.length === 2) return parts[0]! * 60 + parts[1]!;
+  if (parts.length === 3) return parts[0]! * 3600 + parts[1]! * 60 + parts[2]!;
+  return 0;
+}
+
+function formatTimestamp(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
 
 export async function transcribeAudioSegment(
   audio: Blob,
   mimeType: string,
   title: string,
+  /** This segment's own start time within the whole meeting, in seconds
+   * (segmentIndex * SEGMENT_SECONDS — see lib/meetings/constants.ts) — added
+   * to each line's segment-relative "time" from Gemini so the timestamps in
+   * the assembled transcript read as one continuous meeting clock instead of
+   * every segment restarting at 0:00. */
+  segmentStartSeconds: number,
   /** Absolute Date.now()-style timestamp the caller expects to be killed by
    * (Vercel's 60s cap) — used only to decide whether a transient-error retry
    * has any real chance of finishing, not enforced as a hard cutoff here. */
@@ -179,13 +222,23 @@ export async function transcribeAudioSegment(
     deadline
   );
 
-  const parsed = JSON.parse(extractJsonOrThrow(response)) as { transcript?: unknown };
-  if (typeof parsed.transcript !== "string") throw new Error("Gemini's response was missing the transcript field");
-  // Same backstop as lib/agent/reply.ts's chat replies — the prompt asks for
-  // whatever language was spoken, but Gemini has been observed replying in
-  // Simplified Chinese despite that, same as chat characters have. A no-op
-  // on English or already-Traditional text.
-  return toTraditionalChinese(parsed.transcript);
+  const parsed = JSON.parse(extractJsonOrThrow(response)) as { lines?: unknown };
+  if (!Array.isArray(parsed.lines)) throw new Error("Gemini's response was missing the lines field");
+
+  // One "[MM:SS] sentence" per line, joined by newlines — lib/meetings/
+  // splitSentences.ts detects this exact shape to render/export one line per
+  // sentence without needing to re-derive boundaries from punctuation.
+  return parsed.lines
+    .filter((line): line is { time: string; text: string } => typeof line?.text === "string")
+    .map((line) => {
+      const absoluteSeconds = segmentStartSeconds + parseTimestamp(typeof line.time === "string" ? line.time : "0:00");
+      // Same backstop as lib/agent/reply.ts's chat replies — the prompt asks
+      // for whatever language was spoken, but Gemini has been observed
+      // replying in Simplified Chinese despite that. A no-op on English or
+      // already-Traditional text.
+      return `[${formatTimestamp(absoluteSeconds)}] ${toTraditionalChinese(line.text)}`;
+    })
+    .join("\n");
 }
 
 const SUMMARIZE_PROMPT = `Below is the full transcript of a recorded meeting or conversation (it may have

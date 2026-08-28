@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMeeting, markProcessing, markDone, markFailed, appendSegmentTranscript } from "@/lib/meetings/queries";
 import { transcribeAudioSegment, summarizeTranscript } from "@/lib/meetings/gemini";
 import { segmentFolderName } from "@/lib/meetings/segmentPath";
+import { SEGMENT_SECONDS } from "@/lib/meetings/constants";
 
 // Vercel Hobby's hard cap — can't be raised past this regardless of what's
 // declared here. A single call transcribing a whole 1+ hour recording was
@@ -122,7 +123,13 @@ export async function POST(req: NextRequest, { params }: { params: { meetingId: 
 
       const folderPath = `${meeting.audioPath}/${segmentFolderName(segmentIndex)}`;
       const { blob, mimeType } = await downloadAndReassembleAudio(supabase, folderPath);
-      const segmentText = await transcribeAudioSegment(blob, mimeType, meeting.title, deadline);
+      const segmentText = await transcribeAudioSegment(
+        blob,
+        mimeType,
+        meeting.title,
+        segmentIndex * SEGMENT_SECONDS,
+        deadline
+      );
 
       await appendSegmentTranscript(supabase, meeting.id, segmentText);
       console.log(`[meetings] ${meeting.id}: segment ${segmentIndex + 1}/${meeting.totalSegments} done`);

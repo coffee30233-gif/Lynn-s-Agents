@@ -1,13 +1,10 @@
+import { SEGMENT_SECONDS } from "./constants";
+
 // Splits a recording into fixed-length, independently-decodable WAV
 // segments, entirely client-side (Web Audio API — no ffmpeg.wasm or other
 // dependency needed). Each segment is transcribed by its own Gemini call
 // with its own fresh 60s Vercel budget (see app/api/meetings/[meetingId]/process/route.ts).
-// Started at 10 minutes; that was still occasionally exceeding the 60s cap
-// in practice (per-call time doesn't scale perfectly predictably — some
-// segments legitimately take longer to transcribe than others), so this is
-// more conservative. Smaller segments mean more total Gemini calls for the
-// same recording, but each one is safer.
-const SEGMENT_SECONDS = 5 * 60;
+
 // Downsampled to this rate regardless of the source file's — plenty for
 // speech intelligibility (matches the rate used elsewhere for voice in this
 // app), and keeps each segment's WAV small: 5 minutes mono 16-bit at 16kHz
