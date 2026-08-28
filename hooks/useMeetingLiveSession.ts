@@ -137,7 +137,14 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
       const tokenJson = await tokenRes.json();
       if (!tokenRes.ok) throw new Error(tokenJson?.error ?? "無法取得連線憑證");
 
-      const ai = new GoogleGenAI({ apiKey: tokenJson.token });
+      // The SDK itself warns (console) that ephemeral-token support is
+      // v1alpha-only and to set this before connecting — this was missing
+      // here. The last real test's console showed setupComplete plus a
+      // stream of sessionResumptionUpdate heartbeats and then a close, with
+      // zero serverContent the entire time — consistent with the client
+      // never actually entering a real v1alpha live session despite
+      // connecting with a v1alpha-minted token.
+      const ai = new GoogleGenAI({ apiKey: tokenJson.token, httpOptions: { apiVersion: "v1alpha" } });
 
       const session = await ai.live.connect({
         model: tokenJson.model,
@@ -187,8 +194,8 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
             setErrorMessage(e?.message ?? "連線發生錯誤");
             setStatus("error");
           },
-          onclose: (e: { reason?: string }) => {
-            console.log("[useMeetingLiveSession] closed:", e);
+          onclose: (e: { code?: number; reason?: string }) => {
+            console.log(`[useMeetingLiveSession] closed: code=${e?.code} reason=${e?.reason}`);
             setStatus((prev) => (prev === "finishing" ? prev : "closed"));
           },
         },
@@ -211,11 +218,19 @@ export function useMeetingLiveSession(): UseMeetingLiveSessionResult {
       const source = audioContext.createMediaStreamSource(micStream);
       const workletNode = new AudioWorkletNode(audioContext, "pcm-recorder-processor");
       workletNodeRef.current = workletNode;
+      let chunkCount = 0;
       workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
         try {
           sessionRef.current?.sendRealtimeInput({
             audio: { data: arrayBufferToBase64(event.data), mimeType: `audio/pcm;rate=${INPUT_SAMPLE_RATE}` },
           });
+          // Confirms the mic->worklet->send pipeline is actually alive
+          // without flooding the console — one line roughly every couple
+          // seconds' worth of audio instead of one per chunk.
+          chunkCount++;
+          if (chunkCount % 50 === 1) {
+            console.log(`[useMeetingLiveSession] sent audio chunk #${chunkCount} (${event.data.byteLength} bytes)`);
+          }
         } catch (err) {
           console.error("[useMeetingLiveSession] failed to send audio chunk:", err);
         }
