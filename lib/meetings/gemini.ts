@@ -10,6 +10,7 @@ import {
   type GenerateContentResponse,
 } from "@google/genai";
 import type { ActionItem } from "@/lib/meetings/queries";
+import { toTraditionalChinese } from "@/lib/text/toTraditional";
 
 /**
  * Meeting transcription/summarization is low-frequency and high-stakes per
@@ -180,7 +181,11 @@ export async function transcribeAudioSegment(
 
   const parsed = JSON.parse(extractJsonOrThrow(response)) as { transcript?: unknown };
   if (typeof parsed.transcript !== "string") throw new Error("Gemini's response was missing the transcript field");
-  return parsed.transcript;
+  // Same backstop as lib/agent/reply.ts's chat replies — the prompt asks for
+  // whatever language was spoken, but Gemini has been observed replying in
+  // Simplified Chinese despite that, same as chat characters have. A no-op
+  // on English or already-Traditional text.
+  return toTraditionalChinese(parsed.transcript);
 }
 
 const SUMMARIZE_PROMPT = `Below is the full transcript of a recorded meeting or conversation (it may have
@@ -284,10 +289,18 @@ export async function summarizeTranscript(
   ) {
     throw new Error("Gemini's response was missing expected fields");
   }
+  // Same Simplified->Traditional backstop as transcribeAudioSegment() above
+  // — every text field Gemini generated here needs it, not just the summary.
   return {
-    summary: parsed.summary,
-    actionItems: parsed.actionItems.map((item) => ({ text: item.text, owner: item.owner ?? null })),
-    notes: parsed.notes,
-    chapters: parsed.chapters,
+    summary: toTraditionalChinese(parsed.summary),
+    actionItems: parsed.actionItems.map((item) => ({
+      text: toTraditionalChinese(item.text),
+      owner: item.owner ? toTraditionalChinese(item.owner) : null,
+    })),
+    notes: toTraditionalChinese(parsed.notes),
+    chapters: parsed.chapters.map((c) => ({
+      title: toTraditionalChinese(c.title),
+      description: toTraditionalChinese(c.description),
+    })),
   };
 }
