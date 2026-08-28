@@ -196,8 +196,11 @@ Produce:
    in the action items list.
 4. A chapter outline: break the meeting into its major topics/sections, in
    the order they were discussed (like chapters in a podcast or video), each
-   with a short title and a one-sentence description of what was covered.
-   Aim for genuinely distinct topics, not one chapter per minor remark.
+   with a short title and a substantive description (multiple sentences —
+   what was actually discussed, any specific points raised, and how it was
+   resolved or left open) — a reader should understand what happened in that
+   part of the meeting without needing the full transcript. Aim for
+   genuinely distinct topics, not one chapter per minor remark.
 
 Write your response in the same language as the transcript. Respond only in
 the requested JSON structure.

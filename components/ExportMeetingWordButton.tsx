@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Meeting } from "@/lib/meetings/queries";
+import { splitIntoSentenceLines } from "@/lib/meetings/splitSentences";
 
 type SectionKey = "summary" | "chapters" | "actionItems" | "transcript";
 
@@ -42,7 +43,6 @@ async function buildAndDownloadDocx(meeting: Meeting, selected: Set<SectionKey>)
   }
 
   if (selected.has("chapters") && meeting.chapters) {
-    children.push(new Paragraph({ text: "章節", heading: HeadingLevel.HEADING_1 }));
     meeting.chapters.forEach((chapter, i) => {
       children.push(
         new Paragraph({
@@ -70,10 +70,9 @@ async function buildAndDownloadDocx(meeting: Meeting, selected: Set<SectionKey>)
 
   if (selected.has("transcript") && meeting.transcript) {
     children.push(new Paragraph({ text: "逐字稿", heading: HeadingLevel.HEADING_1 }));
-    // One Word paragraph per blank-line-separated chunk (segment boundaries
-    // from appendSegmentTranscript) reads better than one giant paragraph.
-    for (const chunk of meeting.transcript.split(/\n\n+/)) {
-      children.push(new Paragraph({ text: chunk }));
+    // One Word paragraph per sentence reads better than one giant block.
+    for (const line of splitIntoSentenceLines(meeting.transcript)) {
+      children.push(new Paragraph({ text: line }));
     }
   }
 
