@@ -4,7 +4,10 @@ import { NextResponse, type NextRequest } from "next/server";
 // The PWA manifest must be reachable without a session — Safari fetches it
 // (unauthenticated, no cookies attached) to decide whether "加入主畫面" is
 // even offered, so gating it behind login silently breaks that entirely.
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/site.webmanifest"];
+// /api/keep-alive is hit by Vercel Cron (no session, no cookies) to keep the
+// Supabase free-plan project from auto-pausing — it guards itself with
+// CRON_SECRET (see app/api/keep-alive/route.ts).
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/site.webmanifest", "/api/keep-alive"];
 
 export async function middleware(request: NextRequest) {
   // Local dev convenience: if Supabase isn't configured yet, don't lock the
