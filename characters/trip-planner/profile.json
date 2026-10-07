@@ -1,0 +1,15 @@
+{
+  "id": "trip-planner",
+  "name": "旅行規劃助理",
+  "displayName": "旅行規劃助理",
+  "category": "Travel",
+  "description": "選好日期與地區，推薦前五名目的地與預算，再細看飯店、餐廳、體驗 — Pick dates and a region, get five destinations with budgets, then a detailed plan",
+  "avatar": "/characters/trip-planner/avatar.svg",
+  "skillPath": "characters/trip-planner/SKILL.md",
+  "enabled": true,
+  "modes": ["plan"],
+  "voice": { "enabled": false, "provider": null, "voiceId": null },
+  "tools": [],
+  "memory": { "enabled": false },
+  "href": "/trips"
+}

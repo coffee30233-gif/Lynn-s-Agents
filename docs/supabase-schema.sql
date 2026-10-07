@@ -238,3 +238,45 @@ alter table meetings add column if not exists chapters jsonb;
 alter table meetings add column if not exists event_at timestamptz;
 -- Free text, e.g. "Lynn, John, Mary" — no structured per-person data.
 alter table meetings add column if not exists attendees text;
+
+-- Migration: Trip Planner. Same rules as above — safe to re-run the table
+-- and index, but NOT the policies (Postgres has no "create policy if not
+-- exists"), so when applying this to an existing database, paste just this
+-- block, not the whole file again.
+--
+-- A trip row is created when the user picks one of the five suggested
+-- destinations ("選定這個行程"); everything before that (the suggestions,
+-- the unselected detail plans) lives only in the browser. `plan` is the
+-- whole editable plan as one jsonb document — see TripPlan in
+-- lib/trips/types.ts: { overview, budget[], hotels[], restaurants[],
+-- experiences[], days[], sources[] }. It's one blob rather than a table per
+-- list because it's always read and saved as a unit (the editor sends the
+-- whole plan back), and the shape is normalized on every read and write
+-- (lib/trips/normalize.ts), so it can evolve without a migration.
+create table if not exists trips (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references auth.users not null,
+  title       text not null,
+  region      text not null check (region in ('domestic', 'international', 'island')),
+  destination text not null,
+  country     text,
+  start_date  date not null,
+  end_date    date not null,
+  plan        jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists trips_user_id_start_date_idx
+  on trips (user_id, start_date desc);
+
+alter table trips enable row level security;
+
+create policy "trips_select_own" on trips
+  for select using (auth.uid() = user_id);
+create policy "trips_insert_own" on trips
+  for insert with check (auth.uid() = user_id);
+create policy "trips_update_own" on trips
+  for update using (auth.uid() = user_id);
+create policy "trips_delete_own" on trips
+  for delete using (auth.uid() = user_id);

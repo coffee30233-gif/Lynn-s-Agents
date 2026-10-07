@@ -4,7 +4,10 @@ import { DisclaimerBadge } from "@/components/DisclaimerBadge";
 import { getAllCharacters } from "@/lib/characters/registry";
 
 export default function CouncilPage() {
-  const characters = getAllCharacters();
+  // Characters with an `href` (meeting assistant, trip planner) are tools with
+  // their own page, not conversational personas — there's nothing for them to
+  // say as a council member.
+  const characters = getAllCharacters().filter((c) => !c.href);
 
   return (
     <main className="safe-top min-h-dvh bg-ink-950">
